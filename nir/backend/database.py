@@ -1,10 +1,31 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+# from sqlalchemy import create_engine, MetaData
+# from sqlalchemy.orm import sessionmaker
+# from config import DB_HOST, DB_PORT, DB_USER, DB_NAME, DB_PASS
+
+# DATABASE_URL =  "postgresql://postgre:qwerty@localhost:5432/postgre"
+# # DATABASE_URL = "postgresql://%(DB_USER)s:%(DB_PASS)s@%(DB_HOST)s:%(DB_PORT)s/%(DB_NAME)s"  # Укажите вашу БД
+# engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# metadata = MetaData()
+# SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+#  # Укажите вашу БД
+
+from sqlalchemy import create_engine, MetaData
 from sqlalchemy.orm import sessionmaker
+from config import DB_HOST, DB_PORT, DB_USER, DB_NAME, DB_PASS
 
-SQLALCHEMY_DATABASE_URL = "mysql+mysqlconnector://root:@localhost:3306/your_database_name"
+# Убедитесь, что ваша строка подключения правильная
+DATABASE_URL = "postgresql://{user}:{password}@{host}:{port}/{database}".format(
+    user=DB_USER,
+    password=DB_PASS,
+    host=DB_HOST,
+    port=DB_PORT,
+    database=DB_NAME
+)
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# Удалите параметр check_same_thread
+engine = create_engine(DATABASE_URL)
+metadata = MetaData()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()

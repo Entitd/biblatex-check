@@ -12,16 +12,19 @@ const MainPage = () => {
     const [modalOpen, setModalOpen] = useState(false);
     const [sources, setSources] = useState([]);
     const [selectedType, setSelectedType] = useState('');
-    const [currentFields, setCurrentFields] = useState([]); // Состояние для текущих полей
+    const [currentFields, setCurrentFields] = useState([]);
 
     useEffect(() => {
-        fetch("http://localhost:8000/api/files")
+        const userId = 1; // Пример: здесь нужно установить реальный ID пользователя
+        fetch(`http://localhost:8000/api/files?user_id=${userId}`)
             .then((response) => response.json())
-            .then((data) => setFiles(data))
+            .then((data) => {
+                console.log("Полученные данные:", data);
+                setFiles(data);
+            })
             .catch((error) => console.error("Error fetching data:", error));
     }, []);
-
-    // Получение полей для типа записи
+    
     const getFieldsForType = (type) => {
         switch (type) {
             case "article":
@@ -43,13 +46,11 @@ const MainPage = () => {
         }
     };
 
-    // Обработка выбора типа записи
     const handleTypeChange = (type) => {
         setSelectedType(type);
-        setCurrentFields(getFieldsForType(type)); // Устанавливаем поля в зависимости от типа
+        setCurrentFields(getFieldsForType(type));
     };
 
-    // Добавление нового источника
     const addSource = () => {
         if (sources.length < 100) {
             const newSource = {
@@ -57,69 +58,65 @@ const MainPage = () => {
             };
 
             currentFields.forEach(field => {
-                newSource[field] = ''; // Инициализируем поля пустыми значениями
+                newSource[field] = '';
             });
 
-            // Обновляем состояние, добавляя новый источник
             setSources((prevSources) => [...prevSources, newSource]);
         } else {
             alert("Достигнуто максимальное количество источников (100)");
         }
     };
 
-    // Обработка изменения полей источников
     const handleSourceChange = (index, field, value) => {
         setSources((prevSources) => {
             const newSources = [...prevSources];
-            newSources[index] = newSources[index] || { type: selectedType }; // Инициализируем объект для данного источника
+            newSources[index] = newSources[index] || { type: selectedType };
             newSources[index][field] = value;
 
-            return newSources; // Возвращаем новый массив
+            return newSources;
         });
     };
 
- // Сохранение bib-файлов
-const saveBibFiles = () => {
-  const sourcesWithId = sources.map((source, index) => {
-      const cleanedSource = {
-          ...source,
-          ID: `source${index + 1}`, // Генерация уникального ID для каждой записи
-      };
+    const saveBibFiles = () => {
+        const sourcesWithId = sources.map((source, index) => {
+            const cleanedSource = {
+                ...source,
+                ID: `source${index + 1}`,
+            };
 
-      // Удаляем пустые поля
-      Object.keys(cleanedSource).forEach(key => {
-          if (cleanedSource[key] === '') {
-              delete cleanedSource[key];
-          }
-      });
+            Object.keys(cleanedSource).forEach(key => {
+                if (cleanedSource[key] === '') {
+                    delete cleanedSource[key];
+                }
+            });
 
-      return cleanedSource; // Возвращаем объект без пустых полей
-  });
+            return cleanedSource;
+        });
 
-  console.log("Отправляемые данные:", sourcesWithId); // Проверка отправляемых данных
+        console.log("Отправляемые данные:", sourcesWithId);
 
-  fetch("http://localhost:8000/api/save-bib", {
-      method: "POST",
-      headers: {
-          "Content-Type": "application/json",
-      },
-      body: JSON.stringify(sourcesWithId),
-  })
-  .then(response => {
-      if (!response.ok) {
-          throw new Error('Ошибка при сохранении'); // Обработка ошибок
-      }
-      return response.json();
-  })
-  .then(data => {
-      console.log("Bib файл сохранен", data);
-      setModalOpen(false); // Закрываем модальное окно
-      setSources([]); // Очищаем источники после сохранения
-      setCurrentFields([]); // Очищаем текущие поля
-      setSelectedType(''); // Очищаем выбранный тип
-  })
-  .catch(error => console.error("Ошибка при сохранении bib файла:", error));
-};
+        fetch("http://localhost:8000/api/save-bib", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(sourcesWithId),
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Ошибка при сохранении');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log("Bib файл сохранен", data);
+            setModalOpen(false);
+            setSources([]);
+            setCurrentFields([]);
+            setSelectedType('');
+        })
+        .catch(error => console.error("Ошибка при сохранении bib файла:", error));
+    };
 
     return (
         <>
@@ -156,12 +153,19 @@ const saveBibFiles = () => {
                         <tbody>
                             {files.map((file, index) => (
                                 <tr key={index}>
-                                    <td>{file.fileName}</td>
-                                    <td>{file.uploadDate}</td>
-                                    <td>{file.errors}</td>
-                                    <td>{file.course}</td>
+                                    <td>{file.name_file}</td>
                                     <td>
-                                        <a href={file.downloadLink}>Скачать</a>
+                                        {file.uploadDate 
+                                            ? (() => {
+                                                const date = new Date(file.loading_a); // Парсинг даты
+                                                return date.toLocaleDateString('ru-RU'); // Форматирование в нужный вид
+                                            })() 
+                                            : "Дата не указана"}
+                                    </td>
+                                    <td>{file.number_of_errors}</td>
+                                    <td>{file.course_compliance}</td>
+                                    <td>
+                                        <a href={file.download_link_edited}>Скачать</a>
                                     </td>
                                 </tr>
                             ))}
@@ -180,7 +184,6 @@ const saveBibFiles = () => {
                 <div className="modal">
                     <h2>Создать bib-файл</h2>
 
-                    {/* Выпадающий список для выбора типа записи */}
                     <select value={selectedType} onChange={(e) => handleTypeChange(e.target.value)}>
                         <option value="">Выберите тип записи</option>
                         <option value="article">Article</option>
@@ -192,17 +195,16 @@ const saveBibFiles = () => {
                         <option value="manual">Manual</option>
                     </select>
 
-                    {/* Отображение полей в зависимости от типа записи */}
                     {sources.map((source, sourceIndex) => (
                         <div key={sourceIndex}>
                             <h3>Источник {sourceIndex + 1}</h3>
                             {currentFields.map((field, fieldIndex) => (
                                 <input 
-                                    key={`${sourceIndex}-${fieldIndex}`} // Уникальный ключ
+                                    key={`${sourceIndex}-${fieldIndex}`}
                                     type="text"
                                     placeholder={field}
-                                    value={source[field] || ''} // Ссылка на правильный источник
-                                    onChange={(e) => handleSourceChange(sourceIndex, field, e.target.value)} // Обновление поля по индексу источника
+                                    value={source[field] || ''}
+                                    onChange={(e) => handleSourceChange(sourceIndex, field, e.target.value)}
                                 />
                             ))}
                         </div>
