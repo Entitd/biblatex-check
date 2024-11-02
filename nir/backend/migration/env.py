@@ -9,6 +9,10 @@ from models.models import metadata
 
 from config import DB_HOST, DB_PORT, DB_USER, DB_NAME, DB_PASS
 
+from sqlalchemy import MetaData
+
+metadata = MetaData()
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config

@@ -1,27 +1,31 @@
 from datetime import datetime
-from sqlalchemy import MetaData, Table, Column, Integer, String, TIMESTAMP, ForeignKey, func
+from sqlalchemy import Column, Integer, String, TIMESTAMP, func
+from sqlalchemy.ext.declarative import declarative_base
+from pydantic import BaseModel
 
-metadata = MetaData()
+Base = declarative_base()  # Создаем базовый класс для моделей
 
-users = Table(
-    "users",
-    metadata,
-    Column("id_user", Integer, primary_key=True),
-    Column("email", String, nullable=False),
-    Column("username", String, nullable=False),
-    Column("password", String, nullable=False),
-    Column("register_at", TIMESTAMP, server_default=func.now()),  # Устанавливает текущее время
-)
+class UserCreate(BaseModel):
+    username: str
+    password: str  # Добавьте другие необходимые поля
 
-examinations = Table(
-    "examinations",
-    metadata,
-    Column("id_examination", Integer, primary_key=True),
-    Column("id_user", Integer, ForeignKey("users.id_user"), index=True),  # Добавлен индекс
-    Column("name_file", String, nullable=False),
-    Column("loading_at", TIMESTAMP, server_default=func.now()),  # Устанавливает текущее время
-    Column("number_of_errors", Integer, nullable=False),
-    Column("course_compliance", Integer, nullable=False),
-    Column("download_link_source", String, nullable=False),
-    Column("download_link_edited", String, nullable=False)
-)
+class User(Base):
+    __tablename__ = 'users'  # Указываем имя таблицы
+
+    id_user = Column(Integer, primary_key=True)  # Поле для идентификатора пользователя
+    email = Column(String, nullable=False)  # Поле для email
+    username = Column(String, nullable=False)  # Поле для имени пользователя
+    password = Column(String, nullable=False)  # Поле для пароля
+
+class Examination(Base):
+    __tablename__ = 'examinations'  # Указываем имя таблицы
+
+    id_examination = Column(Integer, primary_key=True)
+    id_user = Column(Integer)
+    name_file = Column(String)
+    loading_at = Column(TIMESTAMP, server_default=func.now())  # Исправлено: TIMESTAMP вместо String
+    number_of_errors = Column(Integer)
+    course_compliance = Column(Integer)  # Исправлено на Integer
+    download_link_source = Column(String)
+    download_link_edited = Column(String)
+    errors = Column(String)  # Добавляем новый столбец

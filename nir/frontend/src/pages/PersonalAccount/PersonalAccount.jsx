@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from "react";
-import './main-page.css';
+import './personal-account.css';
 import Logo from "../../components/Logo/Logo";
 import Button from "../../components/Button/Button";
-
 import Icon_profile from "../../assets/icons/icon_profile.svg";
 import Search_icon from "../../assets/icons/search_icon.svg";
 import X_icon from "../../assets/icons/x_icon.svg";
 
-const MainPage = () => {
+const PersonalAccount = () => {
     const [files, setFiles] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
     const [sources, setSources] = useState([]);
@@ -15,7 +14,7 @@ const MainPage = () => {
     const [currentFields, setCurrentFields] = useState([]);
 
     useEffect(() => {
-        const userId = 1; // Пример: здесь нужно установить реальный ID пользователя
+        const userId = 30; // Пример: здесь нужно установить реальный ID пользователя
         fetch(`http://localhost:8000/api/files?user_id=${userId}`)
             .then((response) => {
                 if (!response.ok) {
@@ -116,20 +115,48 @@ const MainPage = () => {
             },
             body: JSON.stringify(sourcesWithId),
         })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Ошибка при сохранении');
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log("Bib файл сохранен", data);
-            setModalOpen(false);
-            setSources([]);
-            setCurrentFields([]);
-            setSelectedType('');
-        })
-        .catch(error => console.error("Ошибка при сохранении bib файла:", error));
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Ошибка при сохранении');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log("Bib файл сохранен", data);
+                setModalOpen(false);
+                setSources([]);
+                setCurrentFields([]);
+                setSelectedType('');
+            })
+            .catch(error => console.error("Ошибка при сохранении bib файла:", error));
+    };
+
+    const uploadBibFile = (event) => {
+        const file = event.target.files[0]; // Получаем первый выбранный файл
+
+        if (file) {
+            console.log("Выбранный файл:", file); // Отладка
+            const formData = new FormData();
+            formData.append('file', file); // Добавляем файл в FormData
+
+            fetch("http://localhost:8000/api/upload-bib", {
+                method: "POST",
+                body: formData,
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Ошибка при загрузке файла');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Файл успешно загружен", data);
+                    // Обновляем список файлов, если нужно
+                })
+                .catch(error => console.error("Ошибка при загрузке bib файла:", error));
+        } else {
+            console.error("Файл не выбран");
+        }
     };
 
     return (
@@ -146,43 +173,50 @@ const MainPage = () => {
                         <img className="x_icon" src={X_icon} alt="x_icon" />
                     </div>
                     <div className="top__button inline_blocks">
-                        <Button onClick={() => setModalOpen(true)}>создать bib-файл</Button>
-                        <Button>загрузить bib-файл</Button>
+                        <Button onClick={() => setModalOpen(true)}>Создать bib-файл</Button>
+                        <Button as="span" onClick={() => document.getElementById('upload-bib-file').click()}>
+                            Загрузить bib-файл
+                        </Button>
+                        <input
+                            id="upload-bib-file"
+                            type="file"
+                            style={{ display: 'none' }} // Скрываем поле
+                            onChange={uploadBibFile} // Обрабатываем изменение
+                        />
                     </div>
                     <img className="icon inline_blocks" src={Icon_profile} alt="Icon_profile" />
                 </div>
 
                 <div className="file-table-container">
-                    <h1>Files List</h1>
                     <table>
                         <thead>
-                            <tr>
-                                <th>Название файла</th>
-                                <th>Дата загрузки</th>
-                                <th>Количество ошибок</th>
-                                <th>Курс</th>
-                                <th>Ссылка на скачивание</th>
-                            </tr>
+                        <tr>
+                            <th>Название файла</th>
+                            <th>Дата загрузки</th>
+                            <th>Количество ошибок</th>
+                            <th>Соответствие курсу</th>
+                            <th>Ссылки на скачивание</th>
+                        </tr>
                         </thead>
                         <tbody>
-                            {files.map((file, index) => (
-                                <tr key={index}>
-                                    <td>{file.name_file}</td>
-                                    <td>{file.loading_at ? formatDate(file.loading_at) : "Дата не указана"}</td>
-                                    <td>{file.number_of_errors}</td>
-                                    <td>{file.course_compliance}</td>
-                                    <td>
-                                        <a href={file.download_link_edited}>Скачать</a>
-                                    </td>
-                                </tr>
-                            ))}
+                        {files.map((file, index) => (
+                            <tr key={index}>
+                                <td>{file.name_file}</td>
+                                <td>{file.loading_at ? formatDate(file.loading_at) : "Дата не указана"}</td>
+                                <td>{file.number_of_errors}</td>
+                                <td>{file.course_compliance}</td>
+                                <td>
+                                    <a href={file.download_link_edited}>Скачать</a>
+                                </td>
+                            </tr>
+                        ))}
                         </tbody>
                     </table>
                 </div>
 
                 <div className="under__button">
-                    <Button>скачать исход. bib-файлы</Button>
-                    <Button>скачать редактир.bib-файлы</Button>
+                    <Button>Скачать выбр. исход. bib-файлы</Button>
+                    <Button>скачать выбр. отредактир. bib-файлы</Button>
                 </div>
             </div>
 
@@ -205,7 +239,7 @@ const MainPage = () => {
                         <div key={sourceIndex}>
                             <h3>Источник {sourceIndex + 1}</h3>
                             {currentFields.map((field, fieldIndex) => (
-                                <input 
+                                <input
                                     key={`${sourceIndex}-${fieldIndex}`}
                                     type="text"
                                     placeholder={field}
@@ -225,4 +259,4 @@ const MainPage = () => {
     );
 };
 
-export default MainPage;
+export default PersonalAccount;

@@ -1,31 +1,26 @@
-# from sqlalchemy import create_engine, MetaData
-# from sqlalchemy.orm import sessionmaker
-# from config import DB_HOST, DB_PORT, DB_USER, DB_NAME, DB_PASS
-
-# DATABASE_URL =  "postgresql://postgre:qwerty@localhost:5432/postgre"
-# # DATABASE_URL = "postgresql://%(DB_USER)s:%(DB_PASS)s@%(DB_HOST)s:%(DB_PORT)s/%(DB_NAME)s"  # Укажите вашу БД
-# engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-# metadata = MetaData()
-# SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-#  # Укажите вашу БД
-
 from sqlalchemy import create_engine, MetaData
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 from config import DB_HOST, DB_PORT, DB_USER, DB_NAME, DB_PASS
 
 # Убедитесь, что ваша строка подключения правильная
-DATABASE_URL = "postgresql://{user}:{password}@{host}:{port}/{database}".format(
-    user=DB_USER,
-    password=DB_PASS,
-    host=DB_HOST,
-    port=DB_PORT,
-    database=DB_NAME
-)
+DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
-# Удалите параметр check_same_thread
+# Создание движка базы данных
 engine = create_engine(DATABASE_URL)
+
+# Создание метаданных
 metadata = MetaData()
+
+# Создание базового класса для моделей
+Base = declarative_base()
+
+# Создание класса сессии
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Функция для получения сессии БД
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

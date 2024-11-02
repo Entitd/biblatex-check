@@ -35,10 +35,10 @@
     margin: 4px 0px 110px -40px;
 }
 .search_bar input{
-    width: 590px;
-    height: 30px;
-    border: 2px solid black;
-    border-radius: 140px;
+    width: 768px;
+    height: 38px;
+    border: 2px solid #ADADAD;
+    border-radius: 8px;
     /* float: left; */
 }
 
@@ -115,4 +115,8 @@ margin-top: 30px;
   .source-group {
     margin-bottom: 10px;
   }
-  
+
+
+
+
+

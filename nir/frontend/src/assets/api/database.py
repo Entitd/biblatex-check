@@ -2,11 +2,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# DB_HOST = '127.0.0.1'
-# DB_USER = 'root'
-# DB_PASSWORD = ''
-# DB_name = 'loans'
-
 # Убедись, что ты указал правильные значения для user, password, host и database
 SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:@127.0.0.1/dbname"
 
