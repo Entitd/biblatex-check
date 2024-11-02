@@ -57,7 +57,7 @@ class ExaminationResponse(BaseModel):
     download_link_edited: str
 
 # Вывод файлов в зависимости от user_id 
-@app.get("/api/files") 
+@app.get("/api/files")
 async def get_user_files(user_id: int, db: Session = Depends(get_db)):
     # Получение записей только для указанного user_id
     user_files = db.query(Examination).filter(Examination.id_user == user_id).all()
