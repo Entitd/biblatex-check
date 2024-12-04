@@ -17,7 +17,7 @@ class UserCreate(BaseModel):
 class User(Base):
     __tablename__ = 'users'  # Указываем имя таблицы
 
-    id_user = Column(Integer, primary_key=True)  # Поле для идентификатора пользователя
+    id_user = Column(Integer, primary_key=True, autoincrement=True)  # Поле для идентификатора пользователя
     email = Column(String, nullable=False)  # Поле для email
     username = Column(String, nullable=False)  # Поле для имени пользователя
     password = Column(String, nullable=False)  # Поле для пароля
@@ -25,7 +25,7 @@ class User(Base):
 class Examination(Base):
     __tablename__ = 'examinations'  # Указываем имя таблицы
 
-    id_examination = Column(Integer, primary_key=True)
+    id_examination = Column(Integer, primary_key=True, autoincrement=True)
     id_user = Column(Integer)
     name_file = Column(String)
     loading_at = Column(TIMESTAMP, server_default=func.now())  # Исправлено: TIMESTAMP вместо String

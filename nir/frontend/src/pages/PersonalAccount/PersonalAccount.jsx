@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+// src/pages/PersonalAccount/PersonalAccount.js
+import React, { useState, useEffect, useContext } from "react";
 import {
     Container,
     Box,
@@ -22,31 +23,34 @@ import {
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import { UserContext } from '../../UserContext.jsx';
 
 const PersonalAccount = () => {
+    const { user } = useContext(UserContext);
     const [files, setFiles] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
     const [sources, setSources] = useState([]);
     const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
     const [currentFields, setCurrentFields] = useState([]);
     const [searchText, setSearchText] = useState("");
-    const [hasSource, setHasSource] = useState(false); // Новое состояние для отслеживания наличия источников
+    const [hasSource, setHasSource] = useState(false);
 
     useEffect(() => {
-        const userId = 1; // Пример: здесь нужно установить реальный ID пользователя
-        fetch(`http://localhost:8000/api/files?user_id=${userId}`)
-            .then((response) => {
-                if (!response.ok) {
-                    throw new Error('Ошибка при получении данных');
-                }
-                return response.json();
-            })
-            .then((data) => {
-                console.log("Полученные данные:", data);
-                setFiles(data);
-            })
-            .catch((error) => console.error("Error fetching data:", error));
-    }, []);
+        if (user) {
+            fetch(`http://localhost:8000/api/files?user_id=${user.user_id}`)
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error('Ошибка при получении данных');
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    console.log("Полученные данные:", data);
+                    setFiles(data);
+                })
+                .catch((error) => console.error("Error fetching data:", error));
+        }
+    }, [user]);
 
     const formatDate = (dateString) => {
         const date = new Date(dateString);
@@ -96,7 +100,7 @@ const PersonalAccount = () => {
             const newSource = { type: '', fields: {} };
             setSources([...sources, newSource]);
             setCurrentSourceIndex(sources.length);
-            setHasSource(true); // Устанавливаем состояние, что источник добавлен
+            setHasSource(true);
         } else {
             alert("Достигнуто максимальное количество источников (100)");
         }
@@ -129,7 +133,7 @@ const PersonalAccount = () => {
                 setModalOpen(false);
                 setSources([]);
                 setCurrentSourceIndex(0);
-                setHasSource(false); // Сбрасываем состояние после сохранения
+                setHasSource(false);
             })
             .catch((error) => console.error("Ошибка при сохранении bib файла:", error));
     };
@@ -148,7 +152,7 @@ const PersonalAccount = () => {
         setModalOpen(true);
         setSources([{ type: '', fields: {} }]);
         setCurrentSourceIndex(0);
-        setHasSource(false); // Сбрасываем состояние при открытии модального окна
+        setHasSource(false);
     };
 
     useEffect(() => {
@@ -227,7 +231,7 @@ const PersonalAccount = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        userSelect: 'none', // Отключаем выделение текста
+                        userSelect: 'none',
                     }}
                 >
                     Загрузить bib-файл
@@ -235,8 +239,8 @@ const PersonalAccount = () => {
                 <input
                     id="upload-bib-file"
                     type="file"
-                    style={{ display: 'none' }} // Скрываем поле
-                    onChange={uploadBibFile} // Обрабатываем изменение
+                    style={{ display: 'none' }}
+                    onChange={uploadBibFile}
                 />
             </Box>
 
