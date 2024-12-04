@@ -3,6 +3,11 @@ from sqlalchemy import Column, Integer, String, TIMESTAMP, func
 from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel
 
+from sqlalchemy import MetaData
+
+metadata = MetaData()
+
+
 Base = declarative_base()  # Создаем базовый класс для моделей
 
 class UserCreate(BaseModel):

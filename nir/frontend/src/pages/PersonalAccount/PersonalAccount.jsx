@@ -1,20 +1,39 @@
 import React, { useState, useEffect } from "react";
-import './personal-account.css';
-import Logo from "../../components/Logo/Logo";
-import Button from "../../components/Button/Button";
-import Icon_profile from "../../assets/icons/icon_profile.svg";
-import Search_icon from "../../assets/icons/search_icon.svg";
-import X_icon from "../../assets/icons/x_icon.svg";
+import {
+    Container,
+    Box,
+    Typography,
+    TextField,
+    Button,
+    IconButton,
+    Table,
+    TableHead,
+    TableBody,
+    TableRow,
+    TableCell,
+    Select,
+    MenuItem,
+    InputLabel,
+    FormControl,
+    Modal,
+    Paper,
+    InputAdornment,
+} from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
+import ClearIcon from "@mui/icons-material/Clear";
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 
 const PersonalAccount = () => {
     const [files, setFiles] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
     const [sources, setSources] = useState([]);
-    const [selectedType, setSelectedType] = useState('');
+    const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
     const [currentFields, setCurrentFields] = useState([]);
+    const [searchText, setSearchText] = useState("");
+    const [hasSource, setHasSource] = useState(false); // Новое состояние для отслеживания наличия источников
 
     useEffect(() => {
-        const userId = 30; // Пример: здесь нужно установить реальный ID пользователя
+        const userId = 1; // Пример: здесь нужно установить реальный ID пользователя
         fetch(`http://localhost:8000/api/files?user_id=${userId}`)
             .then((response) => {
                 if (!response.ok) {
@@ -35,7 +54,7 @@ const PersonalAccount = () => {
             console.error("Ошибка парсинга даты:", dateString);
             return "Некорректная дата";
         }
-        return date.toLocaleDateString('ru-RU'); // Форматирование в нужный вид
+        return date.toLocaleDateString('ru-RU');
     };
 
     const getFieldsForType = (type) => {
@@ -59,203 +78,257 @@ const PersonalAccount = () => {
         }
     };
 
-    const handleTypeChange = (type) => {
-        setSelectedType(type);
-        setCurrentFields(getFieldsForType(type));
+    const handleTypeChange = (index, type) => {
+        const updatedSources = [...sources];
+        updatedSources[index].type = type;
+        updatedSources[index].fields = getFieldsForType(type).reduce((acc, field) => {
+            acc[field] = updatedSources[index].fields[field] || '';
+            return acc;
+        }, {});
+        setSources(updatedSources);
+        if (index === currentSourceIndex) {
+            setCurrentFields(getFieldsForType(type));
+        }
     };
 
     const addSource = () => {
         if (sources.length < 100) {
-            const newSource = {
-                type: selectedType,
-            };
-
-            currentFields.forEach(field => {
-                newSource[field] = '';
-            });
-
-            setSources((prevSources) => [...prevSources, newSource]);
+            const newSource = { type: '', fields: {} };
+            setSources([...sources, newSource]);
+            setCurrentSourceIndex(sources.length);
+            setHasSource(true); // Устанавливаем состояние, что источник добавлен
         } else {
             alert("Достигнуто максимальное количество источников (100)");
         }
     };
 
     const handleSourceChange = (index, field, value) => {
-        setSources((prevSources) => {
-            const newSources = [...prevSources];
-            newSources[index] = newSources[index] || { type: selectedType };
-            newSources[index][field] = value;
-
-            return newSources;
-        });
+        const updatedSources = [...sources];
+        updatedSources[index].fields[field] = value;
+        setSources(updatedSources);
     };
 
     const saveBibFiles = () => {
-        const sourcesWithId = sources.map((source, index) => {
-            const cleanedSource = {
-                ...source,
-                ID: `source${index + 1}`,
-            };
-
-            Object.keys(cleanedSource).forEach(key => {
-                if (cleanedSource[key] === '') {
-                    delete cleanedSource[key];
-                }
-            });
-
-            return cleanedSource;
-        });
-
-        console.log("Отправляемые данные:", sourcesWithId);
+        const formattedSources = sources.map((source, index) => ({
+            ...source.fields,
+            ID: `source${index + 1}`,
+            type: source.type,
+        }));
+        console.log("Отправляемые данные:", formattedSources);
 
         fetch("http://localhost:8000/api/save-bib", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(sourcesWithId),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(formattedSources),
         })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Ошибка при сохранении');
-                }
+            .then((response) => {
+                if (!response.ok) throw new Error('Ошибка при сохранении');
                 return response.json();
             })
-            .then(data => {
-                console.log("Bib файл сохранен", data);
+            .then(() => {
                 setModalOpen(false);
                 setSources([]);
-                setCurrentFields([]);
-                setSelectedType('');
+                setCurrentSourceIndex(0);
+                setHasSource(false); // Сбрасываем состояние после сохранения
             })
-            .catch(error => console.error("Ошибка при сохранении bib файла:", error));
+            .catch((error) => console.error("Ошибка при сохранении bib файла:", error));
+    };
+
+    const navigateSource = (direction) => {
+        if (direction === 'next' && currentSourceIndex < sources.length - 1) {
+            setCurrentSourceIndex(currentSourceIndex + 1);
+            setCurrentFields(getFieldsForType(sources[currentSourceIndex + 1].type));
+        } else if (direction === 'prev' && currentSourceIndex > 0) {
+            setCurrentSourceIndex(currentSourceIndex - 1);
+            setCurrentFields(getFieldsForType(sources[currentSourceIndex - 1].type));
+        }
+    };
+
+    const handleCreateBibFile = () => {
+        setModalOpen(true);
+        setSources([{ type: '', fields: {} }]);
+        setCurrentSourceIndex(0);
+        setHasSource(false); // Сбрасываем состояние при открытии модального окна
+    };
+
+    useEffect(() => {
+        if (sources.length > 0) {
+            setCurrentFields(getFieldsForType(sources[currentSourceIndex].type));
+        }
+    }, [sources, currentSourceIndex]);
+
+    const handleClearSearch = () => {
+        setSearchText("");
     };
 
     const uploadBibFile = (event) => {
-        const file = event.target.files[0]; // Получаем первый выбранный файл
-
+        const file = event.target.files[0];
         if (file) {
-            console.log("Выбранный файл:", file); // Отладка
             const formData = new FormData();
-            formData.append('file', file); // Добавляем файл в FormData
-
-            fetch("http://localhost:8000/api/upload-bib", {
-                method: "POST",
+            formData.append('file', file);
+            fetch('http://localhost:8000/api/upload-bib', {
+                method: 'POST',
                 body: formData,
             })
-                .then(response => {
+                .then((response) => {
                     if (!response.ok) {
                         throw new Error('Ошибка при загрузке файла');
                     }
                     return response.json();
                 })
-                .then(data => {
-                    console.log("Файл успешно загружен", data);
-                    // Обновляем список файлов, если нужно
+                .then((data) => {
+                    console.log('Файл успешно загружен:', data);
+                    // Обновите список файлов или выполните другие действия
                 })
-                .catch(error => console.error("Ошибка при загрузке bib файла:", error));
-        } else {
-            console.error("Файл не выбран");
+                .catch((error) => console.error('Ошибка при загрузке файла:', error));
         }
     };
 
     return (
-        <>
-            <div className="container">
-                <div className="logo_main_page">
-                    <Logo />
-                </div>
+        <Container>
+            <Box display="flex" justifyContent="space-between" alignItems="center" my={2}>
+                <Typography variant="h4">Личный кабинет</Typography>
+                <AccountCircleIcon fontSize="large" />
+            </Box>
 
-                <div className="up_bar">
-                    <div className="search_bar inline_blocks">
-                        <img className="search_icon" src={Search_icon} alt="search_icon" />
-                        <input type="text" />
-                        <img className="x_icon" src={X_icon} alt="x_icon" />
-                    </div>
-                    <div className="top__button inline_blocks">
-                        <Button onClick={() => setModalOpen(true)}>Создать bib-файл</Button>
-                        <Button as="span" onClick={() => document.getElementById('upload-bib-file').click()}>
-                            Загрузить bib-файл
-                        </Button>
-                        <input
-                            id="upload-bib-file"
-                            type="file"
-                            style={{ display: 'none' }} // Скрываем поле
-                            onChange={uploadBibFile} // Обрабатываем изменение
-                        />
-                    </div>
-                    <img className="icon inline_blocks" src={Icon_profile} alt="Icon_profile" />
-                </div>
+            <Box display="flex" gap={2} mb={2}>
+                <Box flex={1} display="flex" alignItems="center">
+                    <TextField
+                        fullWidth
+                        placeholder="Поиск"
+                        variant="outlined"
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                            endAdornment: searchText && (
+                                <InputAdornment position="end">
+                                    <IconButton onClick={handleClearSearch}>
+                                        <ClearIcon />
+                                    </IconButton>
+                                </InputAdornment>
+                            ),
+                        }}
+                    />
+                </Box>
+                <Button variant="contained" onClick={handleCreateBibFile}>
+                    Создать bib-файл
+                </Button>
+                <Button
+                    variant="outlined"
+                    as="span"
+                    onClick={() => document.getElementById('upload-bib-file').click()}
+                    sx={{
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        userSelect: 'none', // Отключаем выделение текста
+                    }}
+                >
+                    Загрузить bib-файл
+                </Button>
+                <input
+                    id="upload-bib-file"
+                    type="file"
+                    style={{ display: 'none' }} // Скрываем поле
+                    onChange={uploadBibFile} // Обрабатываем изменение
+                />
+            </Box>
 
-                <div className="file-table-container">
-                    <table>
-                        <thead>
-                        <tr>
-                            <th>Название файла</th>
-                            <th>Дата загрузки</th>
-                            <th>Количество ошибок</th>
-                            <th>Соответствие курсу</th>
-                            <th>Ссылки на скачивание</th>
-                        </tr>
-                        </thead>
-                        <tbody>
+            <Paper>
+                <Table>
+                    <TableHead>
+                        <TableRow>
+                            <TableCell align="center">Название файла</TableCell>
+                            <TableCell align="center">Дата загрузки</TableCell>
+                            <TableCell align="center">Количество ошибок</TableCell>
+                            <TableCell align="center">Соответствие курсу</TableCell>
+                            <TableCell align="center">Ссылки на скачивание исход. ред.</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
                         {files.map((file, index) => (
-                            <tr key={index}>
-                                <td>{file.name_file}</td>
-                                <td>{file.loading_at ? formatDate(file.loading_at) : "Дата не указана"}</td>
-                                <td>{file.number_of_errors}</td>
-                                <td>{file.course_compliance}</td>
-                                <td>
-                                    <a href={file.download_link_edited}>Скачать</a>
-                                </td>
-                            </tr>
+                            <TableRow key={index}>
+                                <TableCell align="center">{file.name_file}</TableCell>
+                                <TableCell align="center">{formatDate(file.loading_at)}</TableCell>
+                                <TableCell align="center">{file.number_of_errors}</TableCell>
+                                <TableCell align="center">{file.course_compliance}</TableCell>
+                                <TableCell align="center">
+                                    <Button variant="contained" size="small" href={file.download_link_edited} sx={{ marginRight: 1 }}>
+                                        Скачать
+                                    </Button>
+
+                                    <Button variant="contained" size="small" href={file.download_link_edited} sx={{ marginLeft: 1 }}>
+                                        Скачать
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
                         ))}
-                        </tbody>
-                    </table>
-                </div>
+                    </TableBody>
+                </Table>
+            </Paper>
 
-                <div className="under__button">
-                    <Button>Скачать выбр. исход. bib-файлы</Button>
-                    <Button>скачать выбр. отредактир. bib-файлы</Button>
-                </div>
-            </div>
+            <Modal open={modalOpen} onClose={() => setModalOpen(false)}>
+                <Paper sx={{ width: 500, p: 3, mx: "auto", mt: 5 }}>
+                    <Typography variant="h6">Создать bib-файл</Typography>
+                    <FormControl fullWidth margin="normal">
+                        <InputLabel id="type-label">Тип записи</InputLabel>
+                        <Select
+                            labelId="type-label"
+                            value={sources[currentSourceIndex]?.type || ''}
+                            onChange={(e) => handleTypeChange(currentSourceIndex, e.target.value)}
+                        >
+                            <MenuItem value="article">Article</MenuItem>
+                            <MenuItem value="book">Book</MenuItem>
+                            <MenuItem value="conference">Conference</MenuItem>
+                            <MenuItem value="techReport">Tech Report</MenuItem>
+                            <MenuItem value="inProceedings">In Proceedings</MenuItem>
+                            <MenuItem value="online">Online</MenuItem>
+                            <MenuItem value="manual">Manual</MenuItem>
+                        </Select>
+                    </FormControl>
 
-            {modalOpen && (
-                <div className="modal">
-                    <h2>Создать bib-файл</h2>
-
-                    <select value={selectedType} onChange={(e) => handleTypeChange(e.target.value)}>
-                        <option value="">Выберите тип записи</option>
-                        <option value="article">Article</option>
-                        <option value="book">Book</option>
-                        <option value="conference">Conference</option>
-                        <option value="techReport">Tech Report</option>
-                        <option value="inProceedings">In Proceedings</option>
-                        <option value="online">Online</option>
-                        <option value="manual">Manual</option>
-                    </select>
-
-                    {sources.map((source, sourceIndex) => (
-                        <div key={sourceIndex}>
-                            <h3>Источник {sourceIndex + 1}</h3>
-                            {currentFields.map((field, fieldIndex) => (
-                                <input
-                                    key={`${sourceIndex}-${fieldIndex}`}
-                                    type="text"
-                                    placeholder={field}
-                                    value={source[field] || ''}
-                                    onChange={(e) => handleSourceChange(sourceIndex, field, e.target.value)}
+                    {sources.length > 0 && (
+                        <Box my={2}>
+                            <Typography variant="subtitle1">Источник {currentSourceIndex + 1}</Typography>
+                            {currentFields.map((field, idx) => (
+                                <TextField
+                                    key={idx}
+                                    fullWidth
+                                    margin="dense"
+                                    label={field}
+                                    value={sources[currentSourceIndex].fields[field] || ''}
+                                    onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
                                 />
                             ))}
-                        </div>
-                    ))}
+                        </Box>
+                    )}
 
-                    <button onClick={addSource}>Добавить источник</button>
-                    <button onClick={saveBibFiles}>Сохранить</button>
-                    <button onClick={() => setModalOpen(false)}>Закрыть</button>
-                </div>
-            )}
-        </>
+                    <Box display="flex" justifyContent="space-between" mt={2}>
+                        <Button variant="outlined" onClick={() => navigateSource('prev')} disabled={currentSourceIndex === 0}>
+                            Предыдущий
+                        </Button>
+                        <Button variant="outlined" onClick={() => navigateSource('next')} disabled={currentSourceIndex === sources.length - 1}>
+                            Следующий
+                        </Button>
+                    </Box>
+
+                    <Button fullWidth variant="contained" onClick={addSource} sx={{ mt: 2 }}>
+                        Добавить источник
+                    </Button>
+                    {hasSource && (
+                        <Button fullWidth variant="outlined" onClick={saveBibFiles} sx={{ mt: 2 }}>
+                            Сохранить
+                        </Button>
+                    )}
+                </Paper>
+            </Modal>
+        </Container>
     );
 };
 

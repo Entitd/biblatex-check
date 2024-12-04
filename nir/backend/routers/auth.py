@@ -32,7 +32,7 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
 
 # Создаем зависимость для получения текущего пользователя
 def get_current_user(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id_user == user_id).first()
     if user is None:
         raise HTTPException(status_code=400, detail="Пользователь не найден.")
     return user

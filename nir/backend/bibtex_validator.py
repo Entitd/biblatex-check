@@ -51,7 +51,7 @@ def validate_bibtex_file(file_contents, session: Session, user_id: int):
         name_file="имя_вашего_файла.bib",  # Укажите имя файла
         loading_at=loading_at,
         number_of_errors=len(errors),
-        course_compliance=2,  # Статичное значение для курса
+        course_compliance=123,  # Статичное значение для курса
         download_link_source="ссылка_на_исходный_файл",  # Укажите исходную ссылку
         download_link_edited="ссылка_на_отредактированный_файл",  # Укажите ссылку на отредактированный файл
         errors="\n".join(errors) if errors else "Нет ошибок"  # Преобразуем ошибки в строку
