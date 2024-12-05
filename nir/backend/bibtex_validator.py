@@ -1,36 +1,10 @@
-# import bibtexparser
-# from bibtexparser.bparser import BibTexParser
-
-# def validate_bibtex_file(file_contents):
-#     parser = BibTexParser()
-#     bib_data = parser.parse(file_contents)
-#     errors = []
-
-#     for entry in bib_data.entries:
-#         required_fields = ['author', 'title', 'year']
-#         for field in required_fields:
-#             if field not in entry:
-#                 errors.append(f"Запись {entry['ID']} не содержит обязательное поле: {field}")
-
-#         if 'year' in entry and not entry['year'].isdigit():
-#             errors.append(f"Запись {entry['ID']} содержит неверный год: {entry['year']}")
-
-#     return errors
-
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-
 import bibtexparser
 from bibtexparser.bparser import BibTexParser
+from models.models import Examination  # Убедись, что пути к моделям правильные
 
-
-# Импортируем модели из твоей базы данных
-from models.models import User, Examination  # Убедись, что пути к моделям правильные
-
-def validate_bibtex_file(file_contents, session: Session, user_id: int):
+def validate_bibtex_file(file_contents: str, session: Session, user_id: int, file_name: str):
     parser = BibTexParser()
     bib_data = parser.parse(file_contents)
     errors = []
@@ -48,7 +22,7 @@ def validate_bibtex_file(file_contents, session: Session, user_id: int):
     loading_at = datetime.now()  # Получаем текущее время загрузки
     new_exam = Examination(
         id_user=user_id,  # Используем id пользователя из сессии
-        name_file="имя_вашего_файла.bib",  # Укажите имя файла
+        name_file=file_name,  # Укажите имя файла
         loading_at=loading_at,
         number_of_errors=len(errors),
         course_compliance=123,  # Статичное значение для курса

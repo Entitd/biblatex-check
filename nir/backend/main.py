@@ -1,41 +1,40 @@
+import os
+import uuid
+import jwt
 from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pathlib import Path
-
 from fastapi.responses import JSONResponse
-
-from database import SessionLocal, get_db  # Исправлено: добавлен импорт get_db
-from models.models import User, Examination
-from routers import users, register, auth
 from pydantic import BaseModel
-from hashing import hash_password
-from routers.users import router as users_router
-from bibtex_validator import validate_bibtex_file
-from crud import get_user_examinations  # Добавлен импорт get_user_examinations
+from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime
-import bibtexparser
-from bibtexparser.bwriter import BibTexWriter
-from bibtexparser.bibdatabase import BibDatabase
-
-
-from database import get_db  # Импортируйте функцию get_db
-from models.models import Examination  # Импортируйте вашу модель Examination
-from bibtex_validator import validate_bibtex_file  # Импортируйте вашу функцию валидации
-
+from dotenv import load_dotenv
+from models.models import User, Examination
+from database import SessionLocal, get_db
+from routers import users, register, auth
+from bibtex_validator import validate_bibtex_file
 from routers.auth import get_current_user
+from jwt import PyJWTError
+
+# Загрузка переменных окружения
+load_dotenv()
+
+# Извлечение секретного ключа из переменной окружения
+SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key")  # Используйте свою переменную окружения
+ALGORITHM = "HS256"
+
+# Инициализация FastAPI
 app = FastAPI()
 
-app.include_router(users.router)
-app.include_router(auth.router)
-app.include_router(users_router)
-app.include_router(register.router)
-
-# Разрешаем CORS для взаимодействия с фронтендом
+# Разрешение CORS для работы с фронтендом
 origins = [
-    "http://localhost:5174",
-    "http://localhost:5173"
+    "http://localhost:5173",
+    "http://26.38.58.120:5173",
+    "http://10.0.85.2:5173",
+    "http://192.168.0.108:5173",
 ]
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,23 +55,64 @@ class ExaminationResponse(BaseModel):
     download_link_source: str
     download_link_edited: str
 
-# Вывод файлов в зависимости от user_id 
+class UserResponse(BaseModel):
+    id_user: int
+    email: str
+    username: str
+
+# Роутеры
+app.include_router(users.router)
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(register.router)
+
+from datetime import datetime, timedelta
+from jwt import encode
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+# Путь для получения файлов по user_id
 @app.get("/api/files")
 async def get_user_files(user_id: int, db: Session = Depends(get_db)):
-    # Получение записей только для указанного user_id
     user_files = db.query(Examination).filter(Examination.id_user == user_id).all()
-    
     if not user_files:
         raise HTTPException(status_code=404, detail="Записи не найдены.")
-    
     return user_files
 
-# Сохранение BibTeX-файла
+# OAuth2 схема для получения текущего пользователя
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        user = db.query(User).filter(User.id_user == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+# Профиль пользователя
+@app.get("/api/profile")
+def get_profile(user: User = Depends(get_current_user)):
+    return {"id_user": user.id_user, "username": user.username}
+
+# Сохранение BibTeX файла
 @app.post("/api/save-bib")
 async def save_bib(request: Request):
     sources = await request.json()
-    print("Полученные источники:", sources)
-
     if not isinstance(sources, list) or not all('type' in source for source in sources):
         raise HTTPException(status_code=400, detail="Не все источники имеют указанный тип")
 
@@ -84,8 +124,6 @@ async def save_bib(request: Request):
                 entry[key] = source[key]
         bib_entries.append({k: v for k, v in entry.items() if v})
 
-    print("Сформированные записи BibTeX:", bib_entries)
-
     bib_database = BibDatabase()
     bib_database.entries = bib_entries
     writer = BibTexWriter()
@@ -93,10 +131,8 @@ async def save_bib(request: Request):
     folder_path = Path('bib-files')
     folder_path.mkdir(exist_ok=True)
 
-    existing_files = folder_path.glob('create_file*.bib')
-    max_number = max((int(file.stem.replace('create_file', '')) for file in existing_files), default=0)
-    next_number = max_number + 1
-    file_name = f'create_file{next_number}.bib'
+    # Генерация уникального имени файла с использованием UUID
+    file_name = f"bib_file_{uuid.uuid4().hex}.bib"
     file_path = folder_path / file_name
 
     try:
@@ -107,19 +143,19 @@ async def save_bib(request: Request):
 
     return {"msg": "Файл успешно сохранен", "file_path": str(file_path)}
 
-# загрузка bib-файлов
+# Загрузка BibTeX файла
 @app.post("/api/upload-bib")
-async def upload_bib(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_bib(file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         contents = await file.read()
-        
+
         if not file.filename.endswith('.bib'):
-            return JSONResponse(status_code=400, content={"message": "Неверный формат файла"})
-        
+            return JSONResponse(status_code=415, content={"message": "Неверный формат файла. Ожидается .bib"})
+
         # Проверка содержимого файла
-        validation_errors = validate_bibtex_file(contents.decode('utf-8'))
-        
-        # Создание пути и папки для сохранения файла
+        validation_errors = validate_bibtex_file(contents.decode('utf-8'), db, current_user.id_user, file.filename)
+
+        # Путь для загрузки файла
         upload_path = Path('uploads')
         upload_path.mkdir(exist_ok=True)
 
@@ -127,60 +163,16 @@ async def upload_bib(file: UploadFile = File(...), db: Session = Depends(get_db)
         with open(file_path, 'wb') as f:
             f.write(contents)
 
-        # Сохранение информации в базу данных
-        new_exam = Examination(
-            id_user=1,  # Здесь вам нужно установить реальный ID пользователя
-            name_file=file.filename,
-            loading_at=datetime.now(),
-            number_of_errors=len(validation_errors),
-            course_compliance=0,
-            download_link_source=str(file_path),
-            download_link_edited="",
-            errors="; ".join(validation_errors) if validation_errors else None
-        )
-        db.add(new_exam)
-        db.commit()
-
         return {"filename": file.filename, "message": "Файл успешно загружен", "errors": validation_errors}
-    
+
     except Exception as e:
-        # Выводим ошибку в логи и возвращаем ответ с деталями ошибки
         print(f"Ошибка при загрузке файла: {str(e)}")
         return JSONResponse(status_code=500, content={"message": f"Ошибка при загрузке файла: {str(e)}"})
 
-
-# @app.post("/api/upload-bib")
-# async def upload_bib(file: UploadFile, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-#     # Здесь current_user уже содержит информацию о текущем пользователе
-#     if not file.filename.endswith(".bib"):
-#         raise HTTPException(status_code=400, detail="Неверный формат файла, ожидается .bib")
-
-#     content = await file.read()
-
-#     try:
-#         upload_path = Path('uploads')
-#         upload_path.mkdir(exist_ok=True)
-
-#         file_path = upload_path / file.filename
-#         with open(file_path, 'wb') as f:
-#             f.write(content)
-
-#         loading_at = datetime.now()
-#         new_exam = Examination(
-#             id_user=current_user.id_user,  # Используем id текущего пользователя
-#             name_file=file.filename,
-#             loading_at=loading_at,
-#             number_of_errors=0,
-#             course_compliance=2,
-#             download_link_source=str(file_path),
-#             download_link_edited="",
-#             errors="Нет ошибок"
-#         )
-
-#         db.add(new_exam)
-#         db.commit()
-
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Ошибка при обработке файла: {str(e)}")
-
-#     return {"msg": "Файл успешно загружен", "file_path": str(file_path)}
+# Обработчик глобальных исключений
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"message": f"Произошла ошибка: {str(exc)}"}
+    )

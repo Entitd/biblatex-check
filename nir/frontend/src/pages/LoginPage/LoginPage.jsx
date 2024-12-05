@@ -1,4 +1,3 @@
-// src/pages/LoginPage/LoginPage.js
 import React, { useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import './login-page.css';
@@ -24,23 +23,18 @@ const LoginPage = () => {
         }
 
         try {
-            const response = await fetch("http://localhost:8000/api/login", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ username, password }),
-            });
-
-            if (!response.ok) {
-                throw new Error("Ошибка авторизации.");
-            }
-
-            // Автоматически логиним пользователя после успешной авторизации
+            // Используем login из контекста для авторизации
             await login(username, password);
+
+            // После успешного входа перенаправляем на личный кабинет
             navigate("/personalaccount");
         } catch (error) {
-            setError(error.message);
+            // Добавляем более подробную обработку ошибок
+            if (error.response && error.response.status === 401) {
+                setError("Неверный логин или пароль.");
+            } else {
+                setError("Ошибка авторизации. Попробуйте снова.");
+            }
         }
     };
 

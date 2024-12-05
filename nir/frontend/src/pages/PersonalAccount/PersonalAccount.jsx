@@ -1,4 +1,3 @@
-// src/pages/PersonalAccount/PersonalAccount.js
 import React, { useState, useEffect, useContext } from "react";
 import {
     Container,
@@ -26,7 +25,7 @@ import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import { UserContext } from '../../UserContext.jsx';
 
 const PersonalAccount = () => {
-    const { user } = useContext(UserContext);
+    const { user, token } = useContext(UserContext);
     const [files, setFiles] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
     const [sources, setSources] = useState([]);
@@ -37,7 +36,12 @@ const PersonalAccount = () => {
 
     useEffect(() => {
         if (user) {
-            fetch(`http://localhost:8000/api/files?user_id=${user.user_id}`)
+            fetch(`http://localhost:8000/api/files?user_id=${user.id_user}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`, // Передача токена
+                },
+            })
                 .then((response) => {
                     if (!response.ok) {
                         throw new Error('Ошибка при получении данных');
@@ -50,7 +54,7 @@ const PersonalAccount = () => {
                 })
                 .catch((error) => console.error("Error fetching data:", error));
         }
-    }, [user]);
+    }, [user, token]);
 
     const formatDate = (dateString) => {
         const date = new Date(dateString);
@@ -172,6 +176,9 @@ const PersonalAccount = () => {
             formData.append('file', file);
             fetch('http://localhost:8000/api/upload-bib', {
                 method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`, // Передача токена
+                },
                 body: formData,
             })
                 .then((response) => {
@@ -192,6 +199,7 @@ const PersonalAccount = () => {
         <Container>
             <Box display="flex" justifyContent="space-between" alignItems="center" my={2}>
                 <Typography variant="h4">Личный кабинет</Typography>
+                <Typography variant="h6">ID пользователя: {user ? user.id_user : 'Неизвестно'}</Typography>
                 <AccountCircleIcon fontSize="large" />
             </Box>
 
