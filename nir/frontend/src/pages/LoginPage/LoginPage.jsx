@@ -1,18 +1,15 @@
 import React, { useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import './login-page.css';
-import Logo from "../../components/Logo/Logo";
-import Button from "../../components/Button/Button";
-import UpTable from "../../assets/elements_table/up_table.svg";
-import DownTable from "../../assets/elements_table/down_table.svg";
+import { Container, Box, Typography, TextField, Button, Paper, Alert } from "@mui/material";
 import { UserContext } from '../../UserContext';
+import ThemeToggleButton from "../../components/ThemeToggleButton/ThemeToggleButton.jsx";
 
 const LoginPage = () => {
     const navigate = useNavigate();
     const { login } = useContext(UserContext);
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
-    const [error, setError] = useState("");  // Для отображения ошибок
+    const [error, setError] = useState("");
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -23,13 +20,9 @@ const LoginPage = () => {
         }
 
         try {
-            // Используем login из контекста для авторизации
             await login(username, password);
-
-            // После успешного входа перенаправляем на личный кабинет
             navigate("/personalaccount");
         } catch (error) {
-            // Добавляем более подробную обработку ошибок
             if (error.response && error.response.status === 401) {
                 setError("Неверный логин или пароль.");
             } else {
@@ -39,33 +32,53 @@ const LoginPage = () => {
     };
 
     return (
-        <div className="container">
-            <Logo />
-            <div className="form_login">
-                <form onSubmit={handleSubmit}>
-                    <img className="" src={UpTable} alt="UpTable" />
-                    <h2>Вход</h2>
-                    <p>Ваши логин и пароль будут использоваться для входа в аккаунт</p>
-
-                    {error && <p className="error-message">{error}</p>}
-
-                    <input
-                        type="text"
-                        placeholder="Логин"
+        <Container maxWidth="sm">
+            <ThemeToggleButton />
+            <Paper elevation={3} sx={{ padding: 4, marginTop: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <Typography component="h1" variant="h4">
+                    Вход
+                </Typography>
+                <Typography variant="body2" color="textSecondary" align="center">
+                    Ваши логин и пароль будут использоваться для входа в аккаунт
+                </Typography>
+                <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+                    {error && <Alert severity="error">{error}</Alert>}
+                    <TextField
+                        margin="normal"
+                        required
+                        fullWidth
+                        id="username"
+                        label="Логин"
+                        name="username"
+                        autoComplete="username"
+                        autoFocus
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                     />
-                    <input
+                    <TextField
+                        margin="normal"
+                        required
+                        fullWidth
+                        name="password"
+                        label="Пароль"
                         type="password"
-                        placeholder="Введите пароль"
+                        id="password"
+                        autoComplete="current-password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                     />
-                    <Button type="submit">Войти</Button>
-                    <img className="" src={DownTable} alt="DownTable" />
-                </form>
-            </div>
-        </div>
+                    <Button
+                        type="submit"
+                        fullWidth
+                        variant="contained"
+                        color="primary"
+                        sx={{ mt: 3, mb: 2 }}
+                    >
+                        Войти
+                    </Button>
+                </Box>
+            </Paper>
+        </Container>
     );
 };
 

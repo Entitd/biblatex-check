@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useContext, useState, useEffect } from "react";
 import {
     Container,
     Box,
@@ -18,14 +18,17 @@ import {
     Modal,
     Paper,
     InputAdornment,
+    TablePagination,
+    Menu,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import { UserContext } from '../../UserContext.jsx';
+import { UserContext } from '../../UserContext';
+import ThemeToggleButton from "../../components/ThemeToggleButton/ThemeToggleButton.jsx";
 
 const PersonalAccount = () => {
-    const { user, token } = useContext(UserContext);
+    const { user, token, setUser, setToken,logout  } = useContext(UserContext);
     const [files, setFiles] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
     const [sources, setSources] = useState([]);
@@ -33,6 +36,9 @@ const PersonalAccount = () => {
     const [currentFields, setCurrentFields] = useState([]);
     const [searchText, setSearchText] = useState("");
     const [hasSource, setHasSource] = useState(false);
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(6);
+    const [anchorEl, setAnchorEl] = useState(null);
 
     useEffect(() => {
         if (user) {
@@ -195,12 +201,66 @@ const PersonalAccount = () => {
         }
     };
 
+    const handleChangePage = (event, newPage) => {
+        setPage(newPage);
+    };
+
+    const handleChangeRowsPerPage = (event) => {
+        setRowsPerPage(parseInt(event.target.value, 10));
+        setPage(0);
+    };
+
+    const handleMenuOpen = (event) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleMenuClose = () => {
+        setAnchorEl(null);
+    };
+
+    const handleLogout = () => {
+        logout();
+        handleProfileMenuClose();
+    };
+
     return (
         <Container>
             <Box display="flex" justifyContent="space-between" alignItems="center" my={2}>
                 <Typography variant="h4">Личный кабинет</Typography>
                 <Typography variant="h6">ID пользователя: {user ? user.id_user : 'Неизвестно'}</Typography>
-                <AccountCircleIcon fontSize="large" />
+                <Box display="flex" alignItems="center">
+                    <IconButton
+                        aria-label="account of current user"
+                        aria-controls="menu-appbar"
+                        aria-haspopup="true"
+                        color="inherit"
+                        onClick={handleMenuOpen}
+                    >
+                        <AccountCircleIcon fontSize="large" />
+                    </IconButton>
+                    <Menu
+                        id="menu-appbar"
+                        anchorEl={anchorEl}
+                        anchorOrigin={{
+                            vertical: 'top',
+                            horizontal: 'right',
+                        }}
+                        keepMounted
+                        transformOrigin={{
+                            vertical: 'top',
+                            horizontal: 'right',
+                        }}
+                        open={Boolean(anchorEl)}
+                        onClose={handleMenuClose}
+                    >
+                        <MenuItem onClick={handleMenuClose}>
+                            <ThemeToggleButton />
+                        </MenuItem>
+                        <MenuItem onClick={handleLogout}>
+                            Выйти
+                        </MenuItem>
+                    </Menu>
+                </Box>
             </Box>
 
             <Box display="flex" gap={2} mb={2}>
@@ -264,7 +324,7 @@ const PersonalAccount = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {files.map((file, index) => (
+                        {files.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((file, index) => (
                             <TableRow key={index}>
                                 <TableCell align="center">{file.name_file}</TableCell>
                                 <TableCell align="center">{formatDate(file.loading_at)}</TableCell>
@@ -283,6 +343,15 @@ const PersonalAccount = () => {
                         ))}
                     </TableBody>
                 </Table>
+                <TablePagination
+                    rowsPerPageOptions={[5, 10, 25]}
+                    component="div"
+                    count={files.length}
+                    rowsPerPage={rowsPerPage}
+                    page={page}
+                    onPageChange={handleChangePage}
+                    onRowsPerPageChange={handleChangeRowsPerPage}
+                />
             </Paper>
 
             <Modal open={modalOpen} onClose={() => setModalOpen(false)}>

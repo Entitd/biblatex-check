@@ -26,11 +26,12 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
     # Создание нового пользователя
     new_user = User(
         username=user.username,
-        password=hashed_password,
+        hashed_password=hashed_password,
         email=user.username,  # Используем username вместо email
     )
-    
+
     db.add(new_user)
     db.commit()
+    db.refresh(new_user)
 
     return {"message": "Пользователь успешно зарегистрирован."}

@@ -15,18 +15,23 @@ class UserCreate(BaseModel):
 # Регистрация пользователя
 @router.post("/api/register")
 async def register_user(user: UserCreate, db: Session = Depends(get_db)):
+    # Проверка, существует ли уже пользователь с таким логином
     existing_user = db.query(User).filter(User.username == user.username).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Пользователь с таким логином уже существует.")
 
+    # Хеширование пароля перед сохранением
     hashed_password = hash_password(user.password)
 
+    # Создание нового пользователя
     new_user = User(
         username=user.username,
-        password=hashed_password,
-        email=user.username,  # Здесь можно изменить на реальный email, если у вас есть поле для этого
+        hashed_password=hashed_password,
+        email=user.username,  # Используем username вместо email
     )
+
     db.add(new_user)
     db.commit()
+    db.refresh(new_user)
 
     return {"message": "Пользователь успешно зарегистрирован."}

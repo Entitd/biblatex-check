@@ -8,14 +8,17 @@ from pathlib import Path
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from models.models import User, Examination
 from database import SessionLocal, get_db
-from routers import users, register, auth
+from routers import users, register, auth, files
 from bibtex_validator import validate_bibtex_file
 from routers.auth import get_current_user
 from jwt import PyJWTError
+from bibtexparser.bibdatabase import BibDatabase
+from bibtexparser.bwriter import BibTexWriter
+from sqlalchemy import asc  # Добавлен импорт для сортировки
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -34,7 +37,6 @@ origins = [
     "http://10.0.85.2:5173",
     "http://192.168.0.108:5173",
 ]
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -63,11 +65,8 @@ class UserResponse(BaseModel):
 # Роутеры
 app.include_router(users.router)
 app.include_router(auth.router)
-app.include_router(users.router)
 app.include_router(register.router)
-
-from datetime import datetime, timedelta
-from jwt import encode
+app.include_router(files.router)
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
@@ -76,14 +75,14 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     else:
         expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
 
 # Путь для получения файлов по user_id
 @app.get("/api/files")
 async def get_user_files(user_id: int, db: Session = Depends(get_db)):
-    user_files = db.query(Examination).filter(Examination.id_user == user_id).all()
+    # Выполняем запрос с сортировкой по дате загрузки в порядке убывания
+    user_files = db.query(Examination).filter(Examination.id_user == user_id).order_by(asc(Examination.loading_at)).all()
     if not user_files:
         raise HTTPException(status_code=404, detail="Записи не найдены.")
     return user_files
@@ -97,6 +96,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
+
         user = db.query(User).filter(User.id_user == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -143,31 +143,10 @@ async def save_bib(request: Request):
 
     return {"msg": "Файл успешно сохранен", "file_path": str(file_path)}
 
-# Загрузка BibTeX файла
-@app.post("/api/upload-bib")
-async def upload_bib(file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    try:
-        contents = await file.read()
-
-        if not file.filename.endswith('.bib'):
-            return JSONResponse(status_code=415, content={"message": "Неверный формат файла. Ожидается .bib"})
-
-        # Проверка содержимого файла
-        validation_errors = validate_bibtex_file(contents.decode('utf-8'), db, current_user.id_user, file.filename)
-
-        # Путь для загрузки файла
-        upload_path = Path('uploads')
-        upload_path.mkdir(exist_ok=True)
-
-        file_path = upload_path / file.filename
-        with open(file_path, 'wb') as f:
-            f.write(contents)
-
-        return {"filename": file.filename, "message": "Файл успешно загружен", "errors": validation_errors}
-
-    except Exception as e:
-        print(f"Ошибка при загрузке файла: {str(e)}")
-        return JSONResponse(status_code=500, content={"message": f"Ошибка при загрузке файла: {str(e)}"})
+# Маршрут для logout
+@app.post("/api/logout")
+async def logout():
+    return {"message": "Вы успешно вышли из системы"}
 
 # Обработчик глобальных исключений
 @app.exception_handler(Exception)

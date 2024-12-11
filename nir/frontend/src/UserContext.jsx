@@ -69,6 +69,7 @@ export const UserProvider = ({ children }) => {
             setUser(null);
             setToken(null);
             localStorage.removeItem('token');
+            window.location.reload();
         } catch (error) {
             console.error('Logout failed', error);
         }

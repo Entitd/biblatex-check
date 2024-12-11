@@ -2,7 +2,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 import bibtexparser
 from bibtexparser.bparser import BibTexParser
-from models.models import Examination  # Убедись, что пути к моделям правильные
+from models.models import Examination  # Убедитесь, что пути к моделям правильные
 
 def validate_bibtex_file(file_contents: str, session: Session, user_id: int, file_name: str):
     parser = BibTexParser()
@@ -20,12 +20,13 @@ def validate_bibtex_file(file_contents: str, session: Session, user_id: int, fil
 
     # Запись в базу данных
     loading_at = datetime.now()  # Получаем текущее время загрузки
+    course_compliance = 123  # Установите соответствующее значение для курса
     new_exam = Examination(
         id_user=user_id,  # Используем id пользователя из сессии
         name_file=file_name,  # Укажите имя файла
         loading_at=loading_at,
         number_of_errors=len(errors),
-        course_compliance=123,  # Статичное значение для курса
+        course_compliance=course_compliance,
         download_link_source="ссылка_на_исходный_файл",  # Укажите исходную ссылку
         download_link_edited="ссылка_на_отредактированный_файл",  # Укажите ссылку на отредактированный файл
         errors="\n".join(errors) if errors else "Нет ошибок"  # Преобразуем ошибки в строку

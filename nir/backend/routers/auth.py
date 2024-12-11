@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from models.models import User
-from hashing import verify_password
+from hashing import hash_password, verify_password
 from database import get_db
 from datetime import datetime, timedelta
 from jwt import encode, decode
@@ -26,6 +27,10 @@ class UserResponse(BaseModel):
     id: int
     username: str
 
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     if expires_delta:
@@ -39,7 +44,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 @router.post("/api/login")
 def login_user(user: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.username == user.username).first()
-    if not db_user or not verify_password(user.password, db_user.password):
+    if not db_user or not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="Неверный логин или пароль.")
 
     access_token_expires = timedelta(minutes=30)
@@ -48,9 +53,27 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
+@router.post("/api/register")
+def register_user(user: UserCreate, db: Session = Depends(get_db)):
+    hashed_password = hash_password(user.password)
+    db_user = User(username=user.username, hashed_password=hashed_password)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return {"message": "Пользователь успешно зарегистрирован"}
+
 # Создаем зависимость для получения текущего пользователя
-def get_current_user(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id_user == user_id).first()
-    if user is None:
-        raise HTTPException(status_code=400, detail="Пользователь не найден.")
-    return user
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    try:
+        payload = decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        user = db.query(User).filter(User.id_user == user_id).first()
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")

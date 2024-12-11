@@ -1,36 +1,30 @@
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, TIMESTAMP, func
+from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
-from pydantic import BaseModel
+from datetime import datetime
 
-from sqlalchemy import MetaData
-
-metadata = MetaData()
-
-
-Base = declarative_base()  # Создаем базовый класс для моделей
-
-class UserCreate(BaseModel):
-    username: str
-    password: str  # Добавьте другие необходимые поля
+Base = declarative_base()
 
 class User(Base):
-    __tablename__ = 'users'  # Указываем имя таблицы
-
-    id_user = Column(Integer, primary_key=True, autoincrement=True)  # Поле для идентификатора пользователя
-    email = Column(String, nullable=False)  # Поле для email
-    username = Column(String, nullable=False)  # Поле для имени пользователя
-    password = Column(String, nullable=False)  # Поле для пароля
+    __tablename__ = 'users'
+    id_user = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
 
 class Examination(Base):
-    __tablename__ = 'examinations'  # Указываем имя таблицы
-
-    id_examination = Column(Integer, primary_key=True, autoincrement=True)
-    id_user = Column(Integer)
+    __tablename__ = 'examinations'
+    id_examination = Column(Integer, primary_key=True, index=True)
+    id_user = Column(Integer, index=True)
     name_file = Column(String)
-    loading_at = Column(TIMESTAMP, server_default=func.now())  # Исправлено: TIMESTAMP вместо String
+    loading_at = Column(DateTime, default=datetime.utcnow)
     number_of_errors = Column(Integer)
-    course_compliance = Column(Integer)  # Исправлено на Integer
+    course_compliance = Column(Integer)
     download_link_source = Column(String)
     download_link_edited = Column(String)
-    errors = Column(String)  # Добавляем новый столбец
+    errors = Column(String)
+
+class BlacklistedToken(Base):
+    __tablename__ = 'blacklisted_tokens'
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String, unique=True, index=True)
+    blacklisted_on = Column(DateTime, default=datetime.utcnow)

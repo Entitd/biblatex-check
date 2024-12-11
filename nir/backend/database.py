@@ -1,6 +1,10 @@
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.orm import sessionmaker, declarative_base
 from config import DB_HOST, DB_PORT, DB_USER, DB_NAME, DB_PASS
+from models.models import Base
+
+
+
 
 # Убедитесь, что ваша строка подключения правильная
 DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
@@ -24,3 +28,5 @@ def get_db():
         yield db
     finally:
         db.close()
+
+Base.metadata.create_all(bind=engine)
