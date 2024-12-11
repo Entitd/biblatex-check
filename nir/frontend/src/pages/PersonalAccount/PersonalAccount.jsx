@@ -321,6 +321,7 @@ const PersonalAccount = () => {
                             <TableCell align="center">Количество ошибок</TableCell>
                             <TableCell align="center">Соответствие курсу</TableCell>
                             <TableCell align="center">Ссылки на скачивание исход. ред.</TableCell>
+                            <TableCell align="center">Ошибки</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -339,6 +340,7 @@ const PersonalAccount = () => {
                                         Скачать
                                     </Button>
                                 </TableCell>
+                                <TableCell align="center">{file.errors}</TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
