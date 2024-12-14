@@ -83,11 +83,6 @@ def validate_bibtex_file(file_contents: str, session: Session, user_id: int, fil
             print(f"Added error: {error_message}")
 
         print(f"Current errors: {errors}")
-
-    # Добавляем явные ошибки для проверки
-    # errors.append("Тестовая ошибка для проверки")
-    # errors.append("хуй")
-
     print(f"Errors before saving: {errors}")
 
     loading_at = datetime.now()

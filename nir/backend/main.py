@@ -18,7 +18,7 @@ from routers.auth import get_current_user
 from jwt import PyJWTError
 from bibtexparser.bibdatabase import BibDatabase
 from bibtexparser.bwriter import BibTexWriter
-from sqlalchemy import asc  # Добавлен импорт для сортировки
+from sqlalchemy import desc
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -82,7 +82,11 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 @app.get("/api/files")
 async def get_user_files(user_id: int, db: Session = Depends(get_db)):
     # Выполняем запрос с сортировкой по дате загрузки в порядке убывания
-    user_files = db.query(Examination).filter(Examination.id_user == user_id).order_by(asc(Examination.loading_at)).all()
+    user_files = db.query(Examination).filter(Examination.id_user == user_id).order_by(desc(Examination.loading_at)).all()
+
+    # Отладочная информация
+    print("User Files:", user_files)
+
     if not user_files:
         raise HTTPException(status_code=404, detail="Записи не найдены.")
     return user_files
