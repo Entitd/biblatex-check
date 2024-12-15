@@ -3,6 +3,11 @@ from sqlalchemy.orm import Session
 import bibtexparser
 from bibtexparser.bparser import BibTexParser
 from models.models import Examination
+import logging
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 requiredEntryFields = {
     "article": ["author", "title", "journal", "year", "volume", "number", "pages"],
@@ -17,7 +22,7 @@ requiredEntryFields = {
     "incollection": ["author", "title", "booktitle", "year"],
     "suppcollection": "incollection",
     "manual": ["organization", "title", "year"],
-    "misc": ["author", "title", "year"],
+    "misc": ["author", "title", "urldate", "url"],#это online просто библиотека bibtexrasper не поддерживает online
     "online": ["author", "title", "urldate", "url"],
     "patent": ["author", "title", "number", "year"],
     "periodical": ["editor", "title", "year"],
@@ -50,43 +55,71 @@ def get_required_fields(entry_type):
         return fields
     return []
 
+def get_square_color(total_count, foreign_language_count, articles_after_2010_count, literature_21_century_count):
+    if (
+        total_count > 30 and foreign_language_count > 6 and articles_after_2010_count > 6 and literature_21_century_count > 20
+    ):
+        return '5'
+    if (
+        total_count > 25 and foreign_language_count > 5 and articles_after_2010_count > 6 and literature_21_century_count > 20
+    ):
+        return '4'
+    if (
+        total_count > 20 and foreign_language_count > 4 and articles_after_2010_count > 4 and literature_21_century_count > 14
+    ):
+        return '3'
+    if (
+        total_count > 15 and foreign_language_count > 3 and articles_after_2010_count > 2 and literature_21_century_count > 9
+    ):
+        return '2'
+    else:
+        return '0'
+
 def validate_bibtex_file(file_contents: str, session: Session, user_id: int, file_name: str):
+    file_contents = file_contents.replace('@online', '@misc')
     parser = BibTexParser()
 
     # Разбиваем содержимое файла на строки
     file_lines = file_contents.splitlines()
 
-    print(f"File contents: {file_contents}")
+    logger.info(f"File contents: {file_contents}")
 
     try:
         bib_data = parser.parse(file_contents)
     except Exception as e:
-        print(f"Parser error: {e}")
+        logger.error(f"Parser error: {e}")
         return []
 
-    print(f"Parsed entries: {bib_data.entries}")
+    logger.info(f"Parsed entries: {bib_data.entries}")
 
     errors = []
     entry_line_mapping = {}  # Карта соответствия записей и строк
 
     # Определяем строки, где начинаются записи BibTeX
     for i, line in enumerate(file_lines):
+        if line.strip().startswith("%"):
+            continue  # Пропускаем строки, содержащие символ %
         if line.strip().startswith("@"):  # Начало записи (например, @article)
             entry_line_mapping[len(entry_line_mapping)] = i + 1  # Номер строки с 1
 
-    print(f"Entry line mapping: {entry_line_mapping}")
+    logger.info(f"Entry line mapping: {entry_line_mapping}")
+
+    total_count = 0
+    foreign_language_count = 0
+    articles_after_2010_count = 0
+    literature_21_century_count = 0
 
     for index, entry in enumerate(bib_data.entries):
         entry_type = entry.get('ENTRYTYPE', '').lower()
         required_fields = get_required_fields(entry_type)
 
-        print(f"Processing entry: {entry}")
-        print(f"Entry type: {entry_type}")
-        print(f"Required fields: {required_fields}")
-        print(f"Entry fields: {entry.keys()}")
+        logger.debug(f"Processing entry: {entry}")
+        logger.debug(f"Entry type: {entry_type}")
+        logger.debug(f"Required fields: {required_fields}")
+        logger.debug(f"Entry fields: {entry.keys()}")
 
         missing_fields = [field for field in required_fields if field not in entry]
-        print(f"Missing fields for {entry_type}: {missing_fields}")
+        logger.debug(f"Missing fields for {entry_type}: {missing_fields}")
 
         if missing_fields:
             line_number = entry_line_mapping.get(index, "Неизвестно")
@@ -95,13 +128,36 @@ def validate_bibtex_file(file_contents: str, session: Session, user_id: int, fil
                 f"(строка {line_number})"
             )
             errors.append(error_message)
-            print(f"Added error: {error_message}")
+            logger.debug(f"Added error: {error_message}")
 
-        print(f"Current errors: {errors}")
-    print(f"Errors before saving: {errors}")
+        # Подсчет записей
+        total_count += 1
+        year = entry.get('year', '')
+        language = entry.get('hyphenation', '')
+
+        if year.isdigit():
+            year = int(year)
+            if year > 2010:
+                articles_after_2010_count += 1
+            if year >= 2000:
+                literature_21_century_count += 1
+
+        if language and language.lower() != 'russian':
+            foreign_language_count += 1
+
+        logger.debug(f"Current errors: {errors}")
+
+    logger.info(f"Errors before saving: {errors}")
+
+    # Вывод данных в консоль
+    logger.info(f"Total count: {total_count}")
+    logger.info(f"Foreign language count: {foreign_language_count}")
+    logger.info(f"Articles after 2010 count: {articles_after_2010_count}")
+    logger.info(f"Literature 21st century count: {literature_21_century_count}")
+
+    course_compliance = get_square_color(total_count, foreign_language_count, articles_after_2010_count, literature_21_century_count)
 
     loading_at = datetime.now()
-    course_compliance = 2
     new_exam = Examination(
         id_user=user_id,
         name_file=file_name,
@@ -112,15 +168,15 @@ def validate_bibtex_file(file_contents: str, session: Session, user_id: int, fil
         download_link_edited="ссылка_на_отредактированный_файл",
         errors="\n".join(errors) if errors else "Нет ошибок"
     )
-    print(f"Errors after creating Examination object: {new_exam.errors}")
+    logger.info(f"Errors after creating Examination object: {new_exam.errors}")
 
     try:
         session.add(new_exam)
         session.commit()
-        print(f"Examination object saved successfully with errors: {new_exam.errors}")
+        logger.info(f"Examination object saved successfully with errors: {new_exam.errors}")
 
         saved_exam = session.query(Examination).filter_by(id_user=user_id, name_file=file_name).first()
-        print(f"Errors after querying from database: {saved_exam.errors}")
+        logger.info(f"Errors after querying from database: {saved_exam.errors}")
     except Exception as e:
         session.rollback()
         raise e
