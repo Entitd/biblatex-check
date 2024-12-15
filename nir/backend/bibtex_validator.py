@@ -2,7 +2,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 import bibtexparser
 from bibtexparser.bparser import BibTexParser
-from models.models import Examination  # Убедитесь, что пути к моделям правильные
+from models.models import Examination
 
 requiredEntryFields = {
     "article": ["author", "title", "journal", "year", "volume", "number", "pages"],
@@ -53,6 +53,9 @@ def get_required_fields(entry_type):
 def validate_bibtex_file(file_contents: str, session: Session, user_id: int, file_name: str):
     parser = BibTexParser()
 
+    # Разбиваем содержимое файла на строки
+    file_lines = file_contents.splitlines()
+
     print(f"File contents: {file_contents}")
 
     try:
@@ -64,8 +67,16 @@ def validate_bibtex_file(file_contents: str, session: Session, user_id: int, fil
     print(f"Parsed entries: {bib_data.entries}")
 
     errors = []
+    entry_line_mapping = {}  # Карта соответствия записей и строк
 
-    for entry in bib_data.entries:
+    # Определяем строки, где начинаются записи BibTeX
+    for i, line in enumerate(file_lines):
+        if line.strip().startswith("@"):  # Начало записи (например, @article)
+            entry_line_mapping[len(entry_line_mapping)] = i + 1  # Номер строки с 1
+
+    print(f"Entry line mapping: {entry_line_mapping}")
+
+    for index, entry in enumerate(bib_data.entries):
         entry_type = entry.get('ENTRYTYPE', '').lower()
         required_fields = get_required_fields(entry_type)
 
@@ -78,7 +89,11 @@ def validate_bibtex_file(file_contents: str, session: Session, user_id: int, fil
         print(f"Missing fields for {entry_type}: {missing_fields}")
 
         if missing_fields:
-            error_message = f"Missing required fields {', '.join(missing_fields)} in entry of type '{entry_type}'"
+            line_number = entry_line_mapping.get(index, "Неизвестно")
+            error_message = (
+                f"Отсутствуют обязательные поля {', '.join(missing_fields)} в записи типа '{entry_type}' "
+                f"(строка {line_number})"
+            )
             errors.append(error_message)
             print(f"Added error: {error_message}")
 
@@ -111,4 +126,3 @@ def validate_bibtex_file(file_contents: str, session: Session, user_id: int, fil
         raise e
 
     return errors
-
