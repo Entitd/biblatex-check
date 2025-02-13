@@ -1,8 +1,11 @@
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
+from sqlalchemy import MetaData
 
 Base = declarative_base()
+
+metadata = MetaData()
 
 class User(Base):
     __tablename__ = 'users'

@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useState, useEffect, useRef } from "react";
 import {
     Container,
     Box,
@@ -20,6 +20,8 @@ import {
     InputAdornment,
     TablePagination,
     Menu,
+    Fade,
+    Backdrop,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
@@ -27,8 +29,12 @@ import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import { UserContext } from '../../UserContext';
 import ThemeToggleButton from "../../components/ThemeToggleButton/ThemeToggleButton.jsx";
 
+// Подключение Google Fonts
+const fontURL = 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap';
+const fontFamily = 'Roboto, sans-serif';
+
 const PersonalAccount = () => {
-    const { user, token, setUser, setToken,logout  } = useContext(UserContext);
+    const { user, token, setUser, setToken, logout } = useContext(UserContext);
     const [files, setFiles] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
     const [sources, setSources] = useState([]);
@@ -39,6 +45,9 @@ const PersonalAccount = () => {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(6);
     const [anchorEl, setAnchorEl] = useState(null);
+    const [isDragging, setIsDragging] = useState(false);
+
+    const dropRef = useRef(null);
 
     useEffect(() => {
         if (user) {
@@ -159,6 +168,7 @@ const PersonalAccount = () => {
     };
 
     const handleCreateBibFile = () => {
+        console.log("Открытие модального окна"); // Отладочное сообщение
         setModalOpen(true);
         setSources([{ type: '', fields: {} }]);
         setCurrentSourceIndex(0);
@@ -220,14 +230,105 @@ const PersonalAccount = () => {
 
     const handleLogout = () => {
         logout();
-        handleProfileMenuClose();
+        handleMenuClose();
+    };
+
+    const handleDragOver = (event) => {
+        event.preventDefault();
+        if (!isDragging) {
+            setIsDragging(true);
+        }
+    };
+
+    const handleDragLeave = (event) => {
+        const relatedTarget = event.relatedTarget;
+        if (!dropRef.current.contains(relatedTarget)) {
+            setIsDragging(false);
+        }
+    };
+
+    const handleDrop = (event) => {
+        event.preventDefault();
+        setIsDragging(false);
+        const file = event.dataTransfer.files[0];
+        if (file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            fetch('http://localhost:8000/api/upload-bib', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: formData,
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error('Ошибка при загрузке файла');
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    console.log('Файл успешно загружен:', data);
+                })
+                .catch((error) => console.error('Ошибка при загрузке файла:', error));
+        }
     };
 
     return (
-        <Container>
-            <Box display="flex" justifyContent="space-between" alignItems="center" my={2}>
-                <Typography variant="h4">Личный кабинет</Typography>
-                <Typography variant="h6">ID пользователя: {user ? user.id_user : 'Неизвестно'}</Typography>
+        <Container
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            ref={dropRef}
+            sx={{
+                position: 'relative',
+                fontFamily: fontFamily,
+                padding: '20px',
+                height: '100vh',
+                overflow: 'hidden',
+            }}
+        >
+            {/* Затемнение и блюр при перетаскивании */}
+            {isDragging && (
+                <Box
+                    sx={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)', // Затемняем дополнительно
+                        backdropFilter: 'blur(20px)', // Делаем размытие таким же, как в Modal
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 1000,
+                        animation: 'fadeIn 0.3s ease-in-out', // Плавная анимация
+                    }}
+                >
+                    <Typography
+                        variant="h6"
+                        sx={{
+                            fontWeight: 'bold',
+                            color: '#fff',
+                            background: 'rgba(255, 255, 255, 0.1)', // Легкий белый фон
+                            padding: '15px 25px',
+                            borderRadius: '10px',
+                            boxShadow: '0 4px 10px rgba(0, 0, 0, 0.2)',
+                        }}
+                    >
+                        Перетащите файл сюда, чтобы загрузить
+                    </Typography>
+                </Box>
+            )}
+
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#333', fontSize: '2rem' }}>
+                    Личный кабинет
+                </Typography>
+                <Typography variant="h6" sx={{ color: '#555', fontSize: '1.2rem' }}>
+                    ID пользователя: {user ? user.id_user : 'Неизвестно'}
+                </Typography>
                 <Box display="flex" alignItems="center">
                     <IconButton
                         aria-label="account of current user"
@@ -235,6 +336,7 @@ const PersonalAccount = () => {
                         aria-haspopup="true"
                         color="inherit"
                         onClick={handleMenuOpen}
+                        sx={{ color: '#333' }}
                     >
                         <AccountCircleIcon fontSize="large" />
                     </IconButton>
@@ -252,18 +354,25 @@ const PersonalAccount = () => {
                         }}
                         open={Boolean(anchorEl)}
                         onClose={handleMenuClose}
+                        PaperProps={{
+                            elevation: 3,
+                            sx: {
+                                borderRadius: '10px',
+                                boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                            },
+                        }}
                     >
-                        <MenuItem onClick={handleMenuClose}>
+                        <MenuItem onClick={handleMenuClose} sx={{ fontFamily: fontFamily }}>
                             <ThemeToggleButton />
                         </MenuItem>
-                        <MenuItem onClick={handleLogout}>
+                        <MenuItem onClick={handleLogout} sx={{ fontFamily: fontFamily }}>
                             Выйти
                         </MenuItem>
                     </Menu>
                 </Box>
             </Box>
 
-            <Box display="flex" gap={2} mb={2}>
+            <Box display="flex" gap={2} mb={4} flexWrap="wrap">
                 <Box flex={1} display="flex" alignItems="center">
                     <TextField
                         fullWidth
@@ -285,9 +394,35 @@ const PersonalAccount = () => {
                                 </InputAdornment>
                             ),
                         }}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                borderRadius: '5px',
+                                background: '#f9f9f9',
+                                '& fieldset': {
+                                    borderColor: '#ddd',
+                                },
+                                '&:hover fieldset': {
+                                    borderColor: '#007bff',
+                                },
+                            },
+                        }}
                     />
                 </Box>
-                <Button variant="contained" onClick={handleCreateBibFile}>
+                <Button
+                    variant="contained"
+                    onClick={handleCreateBibFile}
+                    sx={{
+                        backgroundColor: '#007bff',
+                        color: '#fff',
+                        borderRadius: '5px',
+                        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                        transition: 'background-color 0.3s, box-shadow 0.3s',
+                        '&:hover': {
+                            backgroundColor: '#0056b3',
+                            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+                        },
+                    }}
+                >
                     Создать bib-файл
                 </Button>
                 <Button
@@ -300,6 +435,14 @@ const PersonalAccount = () => {
                         alignItems: 'center',
                         justifyContent: 'center',
                         userSelect: 'none',
+                        borderColor: '#007bff',
+                        color: '#007bff',
+                        borderRadius: '5px',
+                        transition: 'background-color 0.3s, box-shadow 0.3s',
+                        '&:hover': {
+                            backgroundColor: '#e0f7fa',
+                            boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                        },
                     }}
                 >
                     Загрузить bib-файл
@@ -312,39 +455,94 @@ const PersonalAccount = () => {
                 />
             </Box>
 
-            <Paper>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell align="center">Название файла</TableCell>
-                            <TableCell align="center">Дата загрузки</TableCell>
-                            <TableCell align="center">Количество ошибок</TableCell>
-                            <TableCell align="center">Соответствие курсу</TableCell>
-                            <TableCell align="center">Ссылки на скачивание исход. ред.</TableCell>
-                            <TableCell align="center">Ошибки</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {files.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((file, index) => (
-                            <TableRow key={index}>
-                                <TableCell align="center">{file.name_file}</TableCell>
-                                <TableCell align="center">{formatDate(file.loading_at)}</TableCell>
-                                <TableCell align="center">{file.number_of_errors}</TableCell>
-                                <TableCell align="center">{file.course_compliance}</TableCell>
-                                <TableCell align="center">
-                                    <Button variant="contained" size="small" href={file.download_link_edited} sx={{ marginRight: 1 }}>
-                                        Скачать
-                                    </Button>
-
-                                    <Button variant="contained" size="small" href={file.download_link_edited} sx={{ marginLeft: 1 }}>
-                                        Скачать
-                                    </Button>
+            <Paper
+                sx={{
+                    borderRadius: '15px',
+                    boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
+                    overflow: 'hidden',
+                    background: '#fff',
+                    height: 'calc(100vh - 250px)', // Фиксированная высота для прокрутки
+                    display: 'flex',
+                    flexDirection: 'column',
+                }}
+            >
+                <Box sx={{ flex: 1, overflow: 'auto', '&::-webkit-scrollbar': { width: '8px' }, '&::-webkit-scrollbar-thumb': { backgroundColor: '#ddd', borderRadius: '10px' }, '&::-webkit-scrollbar-thumb:hover': { backgroundColor: '#bbb' } }}>
+                    <Table stickyHeader>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell align="center" sx={{ fontWeight: 'bold', color: '#333', background: '#f9f9f9' }}>
+                                    Название файла
                                 </TableCell>
-                                <TableCell align="center">{file.errors}</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 'bold', color: '#333', background: '#f9f9f9' }}>
+                                    Дата загрузки
+                                </TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 'bold', color: '#333', background: '#f9f9f9' }}>
+                                    Количество ошибок
+                                </TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 'bold', color: '#333', background: '#f9f9f9' }}>
+                                    Соответствие курсу
+                                </TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 'bold', color: '#333', background: '#f9f9f9' }}>
+                                    Ссылки на скачивание исход. ред.
+                                </TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 'bold', color: '#333', background: '#f9f9f9' }}>
+                                    Ошибки
+                                </TableCell>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHead>
+                        <TableBody>
+                            {files.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((file, index) => (
+                                <TableRow key={index} sx={{ '&:nth-of-type(odd)': { backgroundColor: '#f9f9f9' } }}>
+                                    <TableCell align="center">{file.name_file}</TableCell>
+                                    <TableCell align="center">{formatDate(file.loading_at)}</TableCell>
+                                    <TableCell align="center">{file.number_of_errors}</TableCell>
+                                    <TableCell align="center">{file.course_compliance}</TableCell>
+                                    <TableCell align="center">
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            href={file.download_link_edited}
+                                            sx={{
+                                                marginRight: 1,
+                                                backgroundColor: '#28a745',
+                                                color: '#fff',
+                                                borderRadius: '5px',
+                                                boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                                                transition: 'background-color 0.3s, box-shadow 0.3s',
+                                                '&:hover': {
+                                                    backgroundColor: '#218838',
+                                                    boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+                                                },
+                                            }}
+                                        >
+                                            Скачать
+                                        </Button>
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            href={file.download_link_edited}
+                                            sx={{
+                                                marginLeft: 1,
+                                                backgroundColor: '#28a745',
+                                                color: '#fff',
+                                                borderRadius: '5px',
+                                                boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                                                transition: 'background-color 0.3s, box-shadow 0.3s',
+                                                '&:hover': {
+                                                    backgroundColor: '#218838',
+                                                    boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+                                                },
+                                            }}
+                                        >
+                                            Скачать
+                                        </Button>
+                                    </TableCell>
+                                    <TableCell align="center">{file.errors}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </Box>
                 <TablePagination
                     rowsPerPageOptions={[5, 10, 25]}
                     component="div"
@@ -353,63 +551,179 @@ const PersonalAccount = () => {
                     page={page}
                     onPageChange={handleChangePage}
                     onRowsPerPageChange={handleChangeRowsPerPage}
+                    sx={{
+                        '& .MuiTablePagination-root': {
+                            borderRadius: '5px',
+                        },
+                    }}
                 />
             </Paper>
 
-            <Modal open={modalOpen} onClose={() => setModalOpen(false)}>
-                <Paper sx={{ width: 500, p: 3, mx: "auto", mt: 5 }}>
-                    <Typography variant="h6">Создать bib-файл</Typography>
-                    <FormControl fullWidth margin="normal">
-                        <InputLabel id="type-label">Тип записи</InputLabel>
-                        <Select
-                            labelId="type-label"
-                            value={sources[currentSourceIndex]?.type || ''}
-                            onChange={(e) => handleTypeChange(currentSourceIndex, e.target.value)}
-                        >
-                            <MenuItem value="article">Article</MenuItem>
-                            <MenuItem value="book">Book</MenuItem>
-                            <MenuItem value="conference">Conference</MenuItem>
-                            <MenuItem value="techReport">Tech Report</MenuItem>
-                            <MenuItem value="inProceedings">In Proceedings</MenuItem>
-                            <MenuItem value="online">Online</MenuItem>
-                            <MenuItem value="manual">Manual</MenuItem>
-                        </Select>
-                    </FormControl>
+            <Modal
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
+                closeAfterTransition
+                BackdropComponent={Backdrop}
+                BackdropProps={{
+                    timeout: 500,
+                    sx: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                        backdropFilter: 'blur(10px)',
+                    },
+                }}
+            >
+                <Fade in={modalOpen}>
+                    <Paper
+                        sx={{
+                            width: { xs: 300, sm: 400, md: 500 },
+                            p: 3,
+                            mx: "auto",
+                            mt: 5,
+                            borderRadius: '15px',
+                            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+                            background: '#fff',
+                            position: 'relative', // Добавлено для корректного отображения
+                            zIndex: 1001, // Убедитесь, что модальное окно выше фона
+                        }}
+                    >
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#333', mb: 2, textAlign: 'center' }}>
+                            Создать bib-файл
+                        </Typography>
+                        <FormControl fullWidth margin="normal">
+                            <InputLabel id="type-label" sx={{ fontWeight: 'bold', color: '#333' }}>
+                                Тип записи
+                            </InputLabel>
+                            <Select
+                                labelId="type-label"
+                                value={sources[currentSourceIndex]?.type || ''}
+                                onChange={(e) => handleTypeChange(currentSourceIndex, e.target.value)}
+                                sx={{
+                                    borderRadius: '5px',
+                                    '& .MuiOutlinedInput-notchedOutline': {
+                                        borderColor: '#007bff',
+                                    },
+                                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                                        borderColor: '#0056b3',
+                                    },
+                                }}
+                            >
+                                <MenuItem value="article">Article</MenuItem>
+                                <MenuItem value="book">Book</MenuItem>
+                                <MenuItem value="conference">Conference</MenuItem>
+                                <MenuItem value="techReport">Tech Report</MenuItem>
+                                <MenuItem value="inProceedings">In Proceedings</MenuItem>
+                                <MenuItem value="online">Online</MenuItem>
+                                <MenuItem value="manual">Manual</MenuItem>
+                            </Select>
+                        </FormControl>
 
-                    {sources.length > 0 && (
-                        <Box my={2}>
-                            <Typography variant="subtitle1">Источник {currentSourceIndex + 1}</Typography>
-                            {currentFields.map((field, idx) => (
-                                <TextField
-                                    key={idx}
-                                    fullWidth
-                                    margin="dense"
-                                    label={field}
-                                    value={sources[currentSourceIndex].fields[field] || ''}
-                                    onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
-                                />
-                            ))}
+                        {sources.length > 0 && (
+                            <Box my={2}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#333' }}>
+                                    Источник {currentSourceIndex + 1}
+                                </Typography>
+                                {currentFields.map((field, idx) => (
+                                    <TextField
+                                        key={idx}
+                                        fullWidth
+                                        margin="dense"
+                                        label={field}
+                                        value={sources[currentSourceIndex].fields[field] || ''}
+                                        onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
+                                        sx={{
+                                            borderRadius: '5px',
+                                            '& .MuiOutlinedInput-root': {
+                                                '& fieldset': {
+                                                    borderColor: '#007bff',
+                                                },
+                                                '&:hover fieldset': {
+                                                    borderColor: '#0056b3',
+                                                },
+                                            },
+                                        }}
+                                    />
+                                ))}
+                            </Box>
+                        )}
+
+                        <Box display="flex" justifyContent="space-between" mt={2}>
+                            <Button
+                                variant="outlined"
+                                onClick={() => navigateSource('prev')}
+                                disabled={currentSourceIndex === 0}
+                                sx={{
+                                    borderColor: '#007bff',
+                                    color: '#007bff',
+                                    borderRadius: '5px',
+                                    transition: 'background-color 0.3s, box-shadow 0.3s',
+                                    '&:hover': {
+                                        backgroundColor: '#e0f7fa',
+                                        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                                    },
+                                }}
+                            >
+                                Предыдущий
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                onClick={() => navigateSource('next')}
+                                disabled={currentSourceIndex === sources.length - 1}
+                                sx={{
+                                    borderColor: '#007bff',
+                                    color: '#007bff',
+                                    borderRadius: '5px',
+                                    transition: 'background-color 0.3s, box-shadow 0.3s',
+                                    '&:hover': {
+                                        backgroundColor: '#e0f7fa',
+                                        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                                    },
+                                }}
+                            >
+                                Следующий
+                            </Button>
                         </Box>
-                    )}
 
-                    <Box display="flex" justifyContent="space-between" mt={2}>
-                        <Button variant="outlined" onClick={() => navigateSource('prev')} disabled={currentSourceIndex === 0}>
-                            Предыдущий
+                        <Button
+                            fullWidth
+                            variant="contained"
+                            onClick={addSource}
+                            sx={{
+                                mt: 2,
+                                backgroundColor: '#007bff',
+                                color: '#fff',
+                                borderRadius: '5px',
+                                boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                                transition: 'background-color 0.3s, box-shadow 0.3s',
+                                '&:hover': {
+                                    backgroundColor: '#0056b3',
+                                    boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+                                },
+                            }}
+                        >
+                            Добавить источник
                         </Button>
-                        <Button variant="outlined" onClick={() => navigateSource('next')} disabled={currentSourceIndex === sources.length - 1}>
-                            Следующий
-                        </Button>
-                    </Box>
-
-                    <Button fullWidth variant="contained" onClick={addSource} sx={{ mt: 2 }}>
-                        Добавить источник
-                    </Button>
-                    {hasSource && (
-                        <Button fullWidth variant="outlined" onClick={saveBibFiles} sx={{ mt: 2 }}>
-                            Сохранить
-                        </Button>
-                    )}
-                </Paper>
+                        {hasSource && (
+                            <Button
+                                fullWidth
+                                variant="outlined"
+                                onClick={saveBibFiles}
+                                sx={{
+                                    mt: 2,
+                                    borderColor: '#007bff',
+                                    color: '#007bff',
+                                    borderRadius: '5px',
+                                    transition: 'background-color 0.3s, box-shadow 0.3s',
+                                    '&:hover': {
+                                        backgroundColor: '#e0f7fa',
+                                        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                                    },
+                                }}
+                            >
+                                Сохранить
+                            </Button>
+                        )}
+                    </Paper>
+                </Fade>
             </Modal>
         </Container>
     );
