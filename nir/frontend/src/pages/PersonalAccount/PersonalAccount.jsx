@@ -192,30 +192,11 @@ const PersonalAccount = () => {
     };
 
     const uploadBibFile = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            const formData = new FormData();
-            formData.append('file', file);
-            fetch('http://localhost:8000/api/upload-bib', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`, // Передача токена
-                },
-                body: formData,
-            })
-                .then((response) => {
-                    if (!response.ok) {
-                        throw new Error('Ошибка при загрузке файла');
-                    }
-                    return response.json();
-                })
-                .then((data) => {
-                    console.log('Файл успешно загружен:', data);
-                    // Обновите список файлов или выполните другие действия
-                })
-                .catch((error) => console.error('Ошибка при загрузке файла:', error));
+        const files = event.target.files;
+        if (files.length > 0) {
+            uploadBibFiles(files);
         }
-    };
+    };    
 
     const handleChangePage = (event, newPage) => {
         setPage(newPage);
@@ -256,8 +237,14 @@ const PersonalAccount = () => {
     const handleDrop = (event) => {
         event.preventDefault();
         setIsDragging(false);
-        const file = event.dataTransfer.files[0];
-        if (file) {
+        const files = event.dataTransfer.files;
+        if (files.length > 0) {
+            uploadBibFiles(files);
+        }
+    };
+    
+    const uploadBibFiles = (files) => {
+        Array.from(files).forEach((file) => {
             const formData = new FormData();
             formData.append('file', file);
             fetch('http://localhost:8000/api/upload-bib', {
@@ -275,9 +262,10 @@ const PersonalAccount = () => {
                 })
                 .then((data) => {
                     console.log('Файл успешно загружен:', data);
+                    // Обновите список файлов или выполните другие действия
                 })
                 .catch((error) => console.error('Ошибка при загрузке файла:', error));
-        }
+        });
     };
 
     return (
@@ -330,7 +318,7 @@ const PersonalAccount = () => {
 
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                 <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#333', fontSize: '2rem' }}>
-                    Личный кабинет
+                    BIBTEXCHECK
                 </Typography>
                 <Typography variant="h6" sx={{ color: '#555', fontSize: '1.2rem' }}>
                     ID пользователя: {user ? user.id_user : 'Неизвестно'}
