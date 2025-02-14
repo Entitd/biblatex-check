@@ -22,6 +22,9 @@ import {
     Menu,
     Fade,
     Backdrop,
+    Grid,
+    useMediaQuery,
+    useTheme
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
@@ -46,6 +49,9 @@ const PersonalAccount = () => {
     const [rowsPerPage, setRowsPerPage] = useState(6);
     const [anchorEl, setAnchorEl] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
+
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
     const dropRef = useRef(null);
 
@@ -584,6 +590,8 @@ const PersonalAccount = () => {
                             background: '#fff',
                             position: 'relative', // Добавлено для корректного отображения
                             zIndex: 1001, // Убедитесь, что модальное окно выше фона
+                            maxHeight: '80vh', // Ограничение высоты для скролла
+                            overflowY: 'auto', // Добавление скролла
                         }}
                     >
                         <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#333', mb: 2, textAlign: 'center' }}>
