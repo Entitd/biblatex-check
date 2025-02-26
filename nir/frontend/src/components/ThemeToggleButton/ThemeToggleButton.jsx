@@ -5,15 +5,11 @@ import Brightness7Icon from "@mui/icons-material/Brightness7";
 import { ThemeContext } from "./ThemeContext";
 
 const ThemeToggleButton = () => {
-    const { theme, toggleTheme } = useContext(ThemeContext);
-
-    if (!theme || !toggleTheme) {
-        return null; // Возвращаем null, если контекст не предоставлен
-    }
+    const { isDarkMode, toggleTheme } = useContext(ThemeContext);
 
     return (
         <IconButton onClick={toggleTheme} color="inherit">
-            {theme === "light" ? <Brightness4Icon /> : <Brightness7Icon />}
+            {isDarkMode ? <Brightness7Icon /> : <Brightness4Icon />}
         </IconButton>
     );
 };

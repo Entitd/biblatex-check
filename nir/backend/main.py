@@ -115,7 +115,7 @@ def get_profile(user: User = Depends(get_current_user)):
 
 # Сохранение BibTeX файла
 @app.post("/api/save-bib")
-async def save_bib(request: Request):
+async def save_bib(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     sources = await request.json()
     if not isinstance(sources, list) or not all('type' in source for source in sources):
         raise HTTPException(status_code=400, detail="Не все источники имеют указанный тип")
@@ -142,11 +142,29 @@ async def save_bib(request: Request):
     try:
         with open(file_path, 'w') as bibfile:
             bibfile.write(writer.write(bib_database))
+
+        # Проверка содержимого файла
+        with open(file_path, 'r') as bibfile:
+            contents = bibfile.read()
+            validation_errors = validate_bibtex_file(contents, db, current_user.id_user, file_name)
+
+        # Сохранение информации о файле в базу данных
+        new_examination = Examination(
+            id_user=current_user.id_user,
+            name_file=file_name,
+            loading_at=datetime.utcnow(),
+            number_of_errors=len(validation_errors),
+            course_compliance=0,  # Здесь можно добавить логику для определения соответствия курсу
+            download_link_source=str(file_path),
+            download_link_edited=str(file_path)  # Здесь можно указать путь к отредактированному файлу, если он есть
+        )
+        db.add(new_examination)
+        db.commit()
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении BibTeX файла: {str(e)}")
 
-    return {"msg": "Файл успешно сохранен", "file_path": str(file_path)}
-
+    return {"msg": "Файл успешно сохранен и проверен", "file_path": str(file_path), "errors": validation_errors}
 # Маршрут для logout
 @app.post("/api/logout")
 async def logout():

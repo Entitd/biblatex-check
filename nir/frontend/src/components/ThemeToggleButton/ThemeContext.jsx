@@ -1,4 +1,6 @@
 import React, { createContext, useState, useEffect } from "react";
+import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
+import { lightTheme, darkTheme } from './themes'; // Импортируем ваши темы
 
 export const ThemeContext = createContext();
 
@@ -15,13 +17,14 @@ export const ThemeProvider = ({ children }) => {
         localStorage.setItem('theme', newTheme); // Сохранение темы в localStorage
     };
 
-    useEffect(() => {
-        document.body.className = theme;
-    }, [theme]);
+    // Выбираем тему Material-UI в зависимости от текущей темы
+    const muiTheme = theme === "light" ? lightTheme : darkTheme;
 
     return (
         <ThemeContext.Provider value={{ theme, toggleTheme }}>
-            {children}
+            <MuiThemeProvider theme={muiTheme}>
+                {children}
+            </MuiThemeProvider>
         </ThemeContext.Provider>
     );
 };
