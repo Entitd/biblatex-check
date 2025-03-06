@@ -10,27 +10,27 @@ from bibtex_validator import validate_bibtex_file
 router = APIRouter()
 
 # Загрузка BibTeX файла
-@router.post("/api/upload-bib")
-async def upload_bib(file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    try:
-        contents = await file.read()
+# @router.post("/api/upload-bib")
+# async def upload_bib(file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+#     try:
+#         contents = await file.read()
 
-        if not file.filename.endswith('.bib'):
-            return JSONResponse(status_code=415, content={"message": "Неверный формат файла. Ожидается .bib"})
+#         if not file.filename.endswith('.bib'):
+#             return JSONResponse(status_code=415, content={"message": "Неверный формат файла. Ожидается .bib"})
 
-        # Проверка содержимого файла
-        validation_errors = validate_bibtex_file(contents.decode('utf-8'), db, current_user.id_user, file.filename)
+#         # Проверка содержимого файла
+#         validation_errors = validate_bibtex_file(contents.decode('utf-8'), db, current_user.id_user, file.filename)
 
-        # Путь для загрузки файла
-        upload_path = Path('uploads')
-        upload_path.mkdir(exist_ok=True)
+#         # Путь для загрузки файла
+#         upload_path = Path('uploads')
+#         upload_path.mkdir(exist_ok=True)
 
-        file_path = upload_path / file.filename
-        with open(file_path, 'wb') as f:
-            f.write(contents)
+#         file_path = upload_path / file.filename
+#         with open(file_path, 'wb') as f:
+#             f.write(contents)
 
-        return {"filename": file.filename, "message": "Файл успешно загружен", "errors": validation_errors}
+#         return {"filename": file.filename, "message": "Файл успешно загружен", "errors": validation_errors}
 
-    except Exception as e:
-        print(f"Ошибка при загрузке файла: {str(e)}")
-        return JSONResponse(status_code=500, content={"message": f"Ошибка при загрузке файла: {str(e)}"})
+#     except Exception as e:
+#         print(f"Ошибка при загрузке файла: {str(e)}")
+#         return JSONResponse(status_code=500, content={"message": f"Ошибка при загрузке файла: {str(e)}"})

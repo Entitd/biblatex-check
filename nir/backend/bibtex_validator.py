@@ -5,6 +5,8 @@ from bibtexparser.bparser import BibTexParser
 from models.models import Examination
 import logging
 import re
+from pathlib import Path
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,8 +17,6 @@ requiredEntryFields = {
     "manual": ["organization", "title", "year"],
     "misc": ["author", "title", "urldate", "url"],
     "online": ["author", "title", "urldate", "url"],
-    "article": ["author", "title", "journal", "year", "volume", "number", "pages"],
-    "book": ["author", "title", "year", "address", "publisher", "pages"],
     "mvbook": "book",
     "inbook": ["author", "title", "booktitle", "year"],
     "bookinbook": "inbook",
@@ -26,9 +26,6 @@ requiredEntryFields = {
     "mvcollection": "collection",
     "incollection": ["author", "title", "booktitle", "year"],
     "suppcollection": "incollection",
-    "manual": ["organization", "title", "year"],
-    "misc": ["author", "title", "urldate", "url"],  # замена для online
-    "online": ["author", "title", "urldate", "url"],
     "patent": ["author", "title", "number", "year"],
     "periodical": ["editor", "title", "year"],
     "suppperiodical": "article",
@@ -108,7 +105,7 @@ def parse_bibtex(file_contents: str):
 
     return entries
 
-def validate_bibtex_file(file_contents: str, session: Session, user_id: int, file_name: str):
+def validate_bibtex_file(file_contents: str, session: Session, user_id: int, file_name: str, file_path: str):
     logger.debug(f"Input file contents:\n{file_contents}")
     entries = parse_bibtex(file_contents)
     logger.info(f"Parsed {len(entries)} entries")
@@ -138,7 +135,6 @@ def validate_bibtex_file(file_contents: str, session: Session, user_id: int, fil
         year = entry["fields"].get("year", "")
         hyphenation = entry["fields"].get("hyphenation", "").lower()
 
-        # Явно проверяем язык только по hyphenation, иначе считаем русской
         language = 'english' if hyphenation == 'english' else 'russian'
 
         if year.isdigit():
@@ -162,8 +158,8 @@ def validate_bibtex_file(file_contents: str, session: Session, user_id: int, fil
         loading_at=loading_at,
         number_of_errors=len(errors),
         course_compliance=course_compliance,
-        download_link_source="ссылка_на_исходный_файл",
-        download_link_edited="ссылка_на_отредактированный_файл",
+        download_link_source=file_path,
+        download_link_edited=file_path,
         errors="\n".join(errors) if errors else "Нет ошибок"
     )
 

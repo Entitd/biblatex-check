@@ -1,7 +1,7 @@
 import os
 import uuid
 import jwt
-from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pathlib import Path
@@ -13,24 +13,25 @@ from dotenv import load_dotenv
 from models.models import User, Examination
 from database import SessionLocal, get_db
 from routers import users, register, auth, files
-from bibtex_validator import validate_bibtex_file
-from routers.auth import get_current_user
 from jwt import PyJWTError
 from bibtexparser.bibdatabase import BibDatabase
 from bibtexparser.bwriter import BibTexWriter
 from sqlalchemy import desc
+import bibtex_validator  # Импортируем модуль целиком
+from bibtex_validator import validate_bibtex_file  # Импортируем функцию
+
+# Отладочный вывод после импорта
+print(f"Using bibtex_validator from: {bibtex_validator.__file__}")
+print(f"validate_bibtex_file signature at startup: {validate_bibtex_file.__code__.co_varnames}")
 
 # Загрузка переменных окружения
 load_dotenv()
 
-# Извлечение секретного ключа из переменной окружения
-SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key")  # Используйте свою переменную окружения
+SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key")
 ALGORITHM = "HS256"
 
-# Инициализация FastAPI
 app = FastAPI()
 
-# Разрешение CORS для работы с фронтендом
 origins = [
     "http://localhost:5173",
     "http://26.38.58.120:5173",
@@ -46,7 +47,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Pydantic модели для ответов
 class ExaminationResponse(BaseModel):
     id_examination: int
     id_user: int
@@ -62,7 +62,6 @@ class UserResponse(BaseModel):
     email: str
     username: str
 
-# Роутеры
 app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(register.router)
@@ -78,20 +77,6 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-# Путь для получения файлов по user_id
-@app.get("/api/files")
-async def get_user_files(user_id: int, db: Session = Depends(get_db)):
-    # Выполняем запрос с сортировкой по дате загрузки в порядке убывания
-    user_files = db.query(Examination).filter(Examination.id_user == user_id).order_by(desc(Examination.loading_at)).all()
-
-    # Отладочная информация
-    print("User Files:", user_files)
-
-    if not user_files:
-        raise HTTPException(status_code=404, detail="Записи не найдены.")
-    return user_files
-
-# OAuth2 схема для получения текущего пользователя
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
@@ -100,77 +85,129 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
-
         user = db.query(User).filter(User.id_user == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         return user
-    except jwt.PyJWTError:
+    except PyJWTError:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
 
-# Профиль пользователя
+@app.get("/api/files")
+async def get_user_files(user_id: int, db: Session = Depends(get_db)):
+    user_files = db.query(Examination).filter(Examination.id_user == user_id).order_by(desc(Examination.loading_at)).all()
+    if not user_files:
+        raise HTTPException(status_code=404, detail="Записи не найдены.")
+    return [{
+        "id": file.id_examination,
+        "id_user": file.id_user,
+        "name_file": file.name_file,
+        "loading_at": file.loading_at,
+        "number_of_errors": file.number_of_errors,
+        "course_compliance": file.course_compliance,
+        "download_link_source": file.download_link_source,
+        "download_link_edited": file.download_link_edited,
+        "errors": file.errors
+    } for file in user_files]
+
 @app.get("/api/profile")
 def get_profile(user: User = Depends(get_current_user)):
     return {"id_user": user.id_user, "username": user.username}
 
-# Сохранение BibTeX файла
+@app.get("/api/get-bib-content")
+async def get_bib_content(file_id: int = Query(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    exam = db.query(Examination).filter(Examination.id_examination == file_id, Examination.id_user == current_user.id_user).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="File not found or access denied")
+    
+    file_path = Path(exam.download_link_source)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File content not found on disk")
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    return {"content": content}
+
 @app.post("/api/save-bib")
-async def save_bib(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    sources = await request.json()
-    if not isinstance(sources, list) or not all('type' in source for source in sources):
-        raise HTTPException(status_code=400, detail="Не все источники имеют указанный тип")
+async def save_bib(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Парсинг тела запроса
+    data = await request.json()
+    updated_content = data.get("content")
+    file_id = data.get("file_id")
 
-    bib_entries = []
-    for index, source in enumerate(sources):
-        entry = {'ENTRYTYPE': source['type'], 'ID': f'source{index + 1}'}
-        for key in ['author', 'title', 'publisher', 'address', 'url', 'urldate', 'journal', 'year', 'volume', 'number', 'pages']:
-            if key in source and source[key]:
-                entry[key] = source[key]
-        bib_entries.append({k: v for k, v in entry.items() if v})
+    # Проверка обязательных полей
+    if not updated_content or not file_id:
+        raise HTTPException(status_code=400, detail="Content and file_id are required")
 
-    bib_database = BibDatabase()
-    bib_database.entries = bib_entries
-    writer = BibTexWriter()
+    # Получение записи Examination
+    exam = db.query(Examination).filter(Examination.id_examination == file_id, Examination.id_user == current_user.id_user).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="File not found or access denied")
 
-    folder_path = Path('bib-files')
+    # Сохранение обновлённого содержимого в файл
+    file_path = Path(exam.download_link_source)
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(updated_content)
+
+    # Отладочные сообщения
+    print(f"validate_bibtex_file signature: {validate_bibtex_file.__code__.co_varnames}")
+    print(f"Arguments passed: file_contents={updated_content}, session={db}, user_id={current_user.id_user}, file_name={exam.name_file}, file_path={str(file_path)}")
+
+    # Валидация обновлённого BibTeX файла
+    errors = validate_bibtex_file(updated_content, db, current_user.id_user, exam.name_file, str(file_path))
+    
+    # Обновление записи Examination
+    exam.number_of_errors = len(errors)
+    exam.errors = "\n".join(errors) if errors else "Нет ошибок"
+    db.commit()
+
+    # Возврат ответа
+    return {
+        "content": updated_content,
+        "errors": errors,
+        "course_compliance": exam.course_compliance
+    }
+
+@app.post("/api/upload-bib")
+async def upload_bib(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Чтение содержимого файла
+    file_contents = (await file.read()).decode('utf-8')
+    
+    # Создание директории для загрузки, если её нет
+    folder_path = Path('uploads')
     folder_path.mkdir(exist_ok=True)
+    
+    # Генерация уникального имени файла
+    original_name = file.filename
+    unique_name = f"{uuid.uuid4().hex}_{original_name}"
+    file_path = folder_path / unique_name
 
-    # Генерация уникального имени файла с использованием UUID
-    file_name = f"bib_file_{uuid.uuid4().hex}.bib"
-    file_path = folder_path / file_name
+    # Сохранение файла на диск
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(file_contents)
 
-    try:
-        with open(file_path, 'w') as bibfile:
-            bibfile.write(writer.write(bib_database))
+    # Отладочные сообщения
+    print(f"validate_bibtex_file signature: {validate_bibtex_file.__code__.co_varnames}")
+    print(f"Arguments passed: file_contents={file_contents}, session={db}, user_id={current_user.id_user}, file_name={original_name}, file_path={str(file_path)}")
 
-        # Проверка содержимого файла
-        with open(file_path, 'r') as bibfile:
-            contents = bibfile.read()
-            validation_errors = validate_bibtex_file(contents, db, current_user.id_user, file_name)
+    # Валидация BibTeX файла
+    errors = validate_bibtex_file(file_contents, db, current_user.id_user, original_name, str(file_path))
+    
+    # Получение последней записи Examination
+    exam = db.query(Examination).filter(Examination.name_file == original_name, Examination.id_user == current_user.id_user).order_by(desc(Examination.loading_at)).first()
+    
+    # Возврат ответа
+    return {
+        "msg": "Файл успешно загружен и проверен",
+        "file_path": str(file_path),
+        "file_id": exam.id_examination if exam else None,
+        "errors": errors
+    }
 
-        # Сохранение информации о файле в базу данных
-        new_examination = Examination(
-            id_user=current_user.id_user,
-            name_file=file_name,
-            loading_at=datetime.utcnow(),
-            number_of_errors=len(validation_errors),
-            course_compliance=0,  # Здесь можно добавить логику для определения соответствия курсу
-            download_link_source=str(file_path),
-            download_link_edited=str(file_path)  # Здесь можно указать путь к отредактированному файлу, если он есть
-        )
-        db.add(new_examination)
-        db.commit()
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при сохранении BibTeX файла: {str(e)}")
-
-    return {"msg": "Файл успешно сохранен и проверен", "file_path": str(file_path), "errors": validation_errors}
-# Маршрут для logout
 @app.post("/api/logout")
 async def logout():
     return {"message": "Вы успешно вышли из системы"}
 
-# Обработчик глобальных исключений
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
