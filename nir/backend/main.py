@@ -13,16 +13,14 @@ from dotenv import load_dotenv
 from models.models import User, Examination
 from database import SessionLocal, get_db
 from routers import users, register, auth, files
+from bibtex_validator import validate_bibtex_file
 from jwt import PyJWTError
 from bibtexparser.bibdatabase import BibDatabase
 from bibtexparser.bwriter import BibTexWriter
 from sqlalchemy import desc
-import bibtex_validator  # Импортируем модуль целиком
-from bibtex_validator import validate_bibtex_file  # Импортируем функцию
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-# Отладочный вывод после импорта
-print(f"Using bibtex_validator from: {bibtex_validator.__file__}")
-print(f"validate_bibtex_file signature at startup: {validate_bibtex_file.__code__.co_varnames}")
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -67,6 +65,8 @@ app.include_router(auth.router)
 app.include_router(register.router)
 app.include_router(files.router)
 
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     if expires_delta:
@@ -109,9 +109,28 @@ async def get_user_files(user_id: int, db: Session = Depends(get_db)):
         "errors": file.errors
     } for file in user_files]
 
+
 @app.get("/api/profile")
 def get_profile(user: User = Depends(get_current_user)):
     return {"id_user": user.id_user, "username": user.username}
+
+@app.get("/download/{file_path:path}")
+async def download_file(file_path: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    full_path = Path(file_path)
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    exam = db.query(Examination).filter(
+        (Examination.download_link_source == str(full_path)) | (Examination.download_link_edited == str(full_path)),
+        Examination.id_user == current_user.id_user
+    ).first()
+    if not exam:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return FileResponse(
+        full_path,
+        filename=full_path.name,
+        headers={"Content-Disposition": f"attachment; filename={full_path.name}"}
+    )
+
 
 @app.get("/api/get-bib-content")
 async def get_bib_content(file_id: int = Query(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -119,7 +138,8 @@ async def get_bib_content(file_id: int = Query(...), db: Session = Depends(get_d
     if not exam:
         raise HTTPException(status_code=404, detail="File not found or access denied")
     
-    file_path = Path(exam.download_link_source)
+    # Если есть отредактированный файл, возвращаем его, иначе исходный
+    file_path = Path(exam.download_link_edited or exam.download_link_source)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File content not found on disk")
     
@@ -130,38 +150,41 @@ async def get_bib_content(file_id: int = Query(...), db: Session = Depends(get_d
 
 @app.post("/api/save-bib")
 async def save_bib(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # Парсинг тела запроса
     data = await request.json()
     updated_content = data.get("content")
     file_id = data.get("file_id")
 
-    # Проверка обязательных полей
     if not updated_content or not file_id:
         raise HTTPException(status_code=400, detail="Content and file_id are required")
 
-    # Получение записи Examination
     exam = db.query(Examination).filter(Examination.id_examination == file_id, Examination.id_user == current_user.id_user).first()
     if not exam:
         raise HTTPException(status_code=404, detail="File not found or access denied")
 
-    # Сохранение обновлённого содержимого в файл
-    file_path = Path(exam.download_link_source)
-    with open(file_path, 'w', encoding='utf-8') as f:
+    # Путь для отредактированного файла
+    edited_folder = Path('uploads/edited')
+    edited_folder.mkdir(exist_ok=True)
+    edited_file_name = f"{exam.id_examination}_{uuid.uuid4().hex}_{exam.name_file}"
+    edited_file_path = edited_folder / edited_file_name
+
+    # Сохраняем отредактированный файл (перезаписываем, если уже существует отредактированный)
+    if exam.download_link_edited and Path(exam.download_link_edited).exists():
+        Path(exam.download_link_edited).unlink()  # Удаляем предыдущий отредактированный файл
+    with open(edited_file_path, 'w', encoding='utf-8') as f:
         f.write(updated_content)
 
-    # Отладочные сообщения
-    print(f"validate_bibtex_file signature: {validate_bibtex_file.__code__.co_varnames}")
-    print(f"Arguments passed: file_contents={updated_content}, session={db}, user_id={current_user.id_user}, file_name={exam.name_file}, file_path={str(file_path)}")
+    # Валидируем обновленное содержимое
+    validation_result = validate_bibtex_file(updated_content)
+    errors = validation_result["errors"]
+    course_compliance = validation_result["course_compliance"]
 
-    # Валидация обновлённого BibTeX файла
-    errors = validate_bibtex_file(updated_content, db, current_user.id_user, exam.name_file, str(file_path))
-    
-    # Обновление записи Examination
+    # Обновляем запись в базе
     exam.number_of_errors = len(errors)
     exam.errors = "\n".join(errors) if errors else "Нет ошибок"
+    exam.course_compliance = course_compliance
+    exam.download_link_edited = str(edited_file_path)
     db.commit()
 
-    # Возврат ответа
     return {
         "content": updated_content,
         "errors": errors,
@@ -170,37 +193,43 @@ async def save_bib(request: Request, db: Session = Depends(get_db), current_user
 
 @app.post("/api/upload-bib")
 async def upload_bib(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # Чтение содержимого файла
     file_contents = (await file.read()).decode('utf-8')
     
-    # Создание директории для загрузки, если её нет
-    folder_path = Path('uploads')
-    folder_path.mkdir(exist_ok=True)
-    
-    # Генерация уникального имени файла
+    # Путь для исходного файла
+    source_folder = Path('uploads/source')
+    source_folder.mkdir(exist_ok=True)
     original_name = file.filename
     unique_name = f"{uuid.uuid4().hex}_{original_name}"
-    file_path = folder_path / unique_name
+    source_file_path = source_folder / unique_name
 
-    # Сохранение файла на диск
-    with open(file_path, 'w', encoding='utf-8') as f:
+    # Сохраняем исходный файл
+    with open(source_file_path, 'w', encoding='utf-8') as f:
         f.write(file_contents)
 
-    # Отладочные сообщения
-    print(f"validate_bibtex_file signature: {validate_bibtex_file.__code__.co_varnames}")
-    print(f"Arguments passed: file_contents={file_contents}, session={db}, user_id={current_user.id_user}, file_name={original_name}, file_path={str(file_path)}")
+    # Валидируем содержимое
+    validation_result = validate_bibtex_file(file_contents)
+    errors = validation_result["errors"]
+    course_compliance = validation_result["course_compliance"]
 
-    # Валидация BibTeX файла
-    errors = validate_bibtex_file(file_contents, db, current_user.id_user, original_name, str(file_path))
-    
-    # Получение последней записи Examination
-    exam = db.query(Examination).filter(Examination.name_file == original_name, Examination.id_user == current_user.id_user).order_by(desc(Examination.loading_at)).first()
-    
-    # Возврат ответа
+    # Создаем новую запись
+    new_exam = Examination(
+        id_user=current_user.id_user,
+        name_file=original_name,
+        loading_at=datetime.now(),
+        number_of_errors=len(errors),
+        course_compliance=course_compliance,
+        download_link_source=str(source_file_path),
+        download_link_edited=None,  # Изначально отредактированного файла нет
+        errors="\n".join(errors) if errors else "Нет ошибок"
+    )
+    db.add(new_exam)
+    db.commit()
+    db.refresh(new_exam)  # Обновляем объект, чтобы получить id_examination
+
     return {
         "msg": "Файл успешно загружен и проверен",
-        "file_path": str(file_path),
-        "file_id": exam.id_examination if exam else None,
+        "file_path": str(source_file_path),
+        "file_id": new_exam.id_examination,
         "errors": errors
     }
 

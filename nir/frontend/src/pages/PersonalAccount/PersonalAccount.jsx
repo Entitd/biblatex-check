@@ -142,7 +142,6 @@ const PersonalAccount = () => {
     };
 
     const handleEditFile = (file) => {
-        // Предполагаем, что сервер вернет содержимое файла через новый эндпоинт
         fetch(`http://localhost:8000/api/get-bib-content?file_id=${file.id}`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` },
@@ -225,6 +224,36 @@ const PersonalAccount = () => {
     const filteredFiles = files.filter((file) =>
         file.name_file.toLowerCase().includes(searchText.toLowerCase())
     );
+
+    // Функция для скачивания файла
+    const downloadFile = async (fileUrl, fileName) => {
+        if (!fileUrl) return;
+        try {
+            const response = await fetch(`http://localhost:8000/download/${fileUrl}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`, // Передаем токен из контекста
+                },
+            });
+    
+            if (!response.ok) {
+                throw new Error(`Ошибка: ${response.status} ${response.statusText}`);
+            }
+    
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url); // Очищаем временный URL
+        } catch (error) {
+            console.error("Ошибка при скачивании файла:", error);
+            alert("Не удалось скачать файл: " + error.message);
+        }
+    };
 
     return (
         <>
@@ -310,12 +339,33 @@ const PersonalAccount = () => {
                                         <TableCell align="center">{file.number_of_errors}</TableCell>
                                         <TableCell align="center">{file.course_compliance}</TableCell>
                                         <TableCell align="center">
-                                            <Button variant="contained" size="small" href={file.download_link_source} sx={{ mr: 1, backgroundColor: 'secondary.main', '&:hover': { backgroundColor: 'secondary.dark' } }}>Исходный</Button>
-                                            <Button variant="contained" size="small" href={file.download_link_edited} sx={{ backgroundColor: 'secondary.main', '&:hover': { backgroundColor: 'secondary.dark' } }}>Редактированный</Button>
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            onClick={() => downloadFile(file.download_link_source, `${file.name_file}_source.bib`)}
+                                            sx={{ mr: 1, backgroundColor: 'secondary.main', '&:hover': { backgroundColor: 'secondary.dark' } }}
+                                        >
+                                            Исходный
+                                        </Button>
+                                        {file.download_link_edited && (
+                                            <Button
+                                                variant="contained"
+                                                size="small"
+                                                onClick={() => downloadFile(file.download_link_edited, `${file.name_file}_edited.bib`)}
+                                                sx={{ backgroundColor: 'secondary.main', '&:hover': { backgroundColor: 'secondary.dark' } }}
+                                            >
+                                                Отредактированный
+                                            </Button>
+                                        )}
                                         </TableCell>
                                         <TableCell align="center">{file.errors}</TableCell>
                                         <TableCell align="center">
-                                            <Button variant="outlined" size="small" onClick={() => handleEditFile(file)} sx={{ borderColor: 'primary.main', color: 'primary.main', '&:hover': { backgroundColor: 'primary.light' } }}>
+                                            <Button
+                                                variant="outlined"
+                                                size="small"
+                                                onClick={() => handleEditFile(file)}
+                                                sx={{ borderColor: 'primary.main', color: 'primary.main', '&:hover': { backgroundColor: 'primary.light' } }}
+                                            >
                                                 Редактировать
                                             </Button>
                                         </TableCell>
@@ -336,7 +386,13 @@ const PersonalAccount = () => {
                 </Paper>
 
                 {/* Модальное окно для создания нового файла */}
-                <Modal open={modalOpen} onClose={() => setModalOpen(false)} closeAfterTransition BackdropComponent={Backdrop} BackdropProps={{ timeout: 500, sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)' } }}>
+                <Modal
+                    open={modalOpen}
+                    onClose={() => setModalOpen(false)}
+                    closeAfterTransition
+                    BackdropComponent={Backdrop}
+                    BackdropProps={{ timeout: 500, sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)' } }}
+                >
                     <Fade in={modalOpen}>
                         <Paper sx={{ width: { xs: 300, sm: 400, md: 500 }, p: 3, mx: "auto", mt: 5, borderRadius: '15px', boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)', background: 'background.paper', maxHeight: '80vh', overflowY: 'auto' }}>
                             <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>Создать bib-файл</Typography>
@@ -382,19 +438,51 @@ const PersonalAccount = () => {
                 </Modal>
 
                 {/* Модальное окно для редактирования файла */}
-                <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)} closeAfterTransition BackdropComponent={Backdrop} BackdropProps={{ timeout: 500, sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)' } }}>
+                <Modal
+                    open={editModalOpen}
+                    onClose={() => setEditModalOpen(false)}
+                    closeAfterTransition
+                    BackdropComponent={Backdrop}
+                    BackdropProps={{ timeout: 500, sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)' } }}
+                >
                     <Fade in={editModalOpen}>
-                        <Paper sx={{ width: { xs: 300, sm: 600, md: 800 }, p: 3, mx: "auto", mt: 5, borderRadius: '15px', boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)', background: 'background.paper', maxHeight: '80vh', overflowY: 'auto' }}>
-                            <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>Редактировать bib-файл</Typography>
-                            <TextField
+                        <Paper
+                            sx={{
+                                width: { xs: '90vw', sm: 600, md: 800 },
+                                p: 3,
+                                mx: "auto",
+                                mt: 5,
+                                borderRadius: '15px',
+                                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+                                background: 'background.paper',
+                                height: 'auto',
+                                maxHeight: '80vh',
+                                display: 'flex',
+                                flexDirection: 'column',
+                            }}
+                        >
+                            <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
+                                Редактировать bib-файл
+                            </Typography>
+                            <Box sx={{ flex: 1, overflowY: 'auto', mb: 2 }}>
+                                <TextField
+                                    fullWidth
+                                    multiline
+                                    value={editContent}
+                                    onChange={(e) => setEditContent(e.target.value)}
+                                    sx={{
+                                        '& .MuiInputBase-root': { fontFamily: 'monospace' },
+                                        '& .MuiInputBase-input': { height: 'calc(80vh - 150px)', overflowY: 'auto' }, // Адаптивная высота
+                                    }}
+                                    inputProps={{ style: { resize: 'none' } }}
+                                />
+                            </Box>
+                            <Button
                                 fullWidth
-                                multiline
-                                rows={20}
-                                value={editContent}
-                                onChange={(e) => setEditContent(e.target.value)}
-                                sx={{ mb: 2, '& .MuiInputBase-root': { fontFamily: 'monospace' } }}
-                            />
-                            <Button fullWidth variant="contained" onClick={handleSaveEditedFile} sx={{ backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' } }}>
+                                variant="contained"
+                                onClick={handleSaveEditedFile}
+                                sx={{ backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' } }}
+                            >
                                 Сохранить изменения
                             </Button>
                         </Paper>

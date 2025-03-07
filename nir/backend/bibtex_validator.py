@@ -105,7 +105,7 @@ def parse_bibtex(file_contents: str):
 
     return entries
 
-def validate_bibtex_file(file_contents: str, session: Session, user_id: int, file_name: str, file_path: str):
+def validate_bibtex_file(file_contents: str):
     logger.debug(f"Input file contents:\n{file_contents}")
     entries = parse_bibtex(file_contents)
     logger.info(f"Parsed {len(entries)} entries")
@@ -151,25 +151,7 @@ def validate_bibtex_file(file_contents: str, session: Session, user_id: int, fil
     course_compliance = get_square_color(total_count, foreign_language_count, articles_after_2010_count, literature_21_century_count)
     logger.info(f"Course compliance: {course_compliance}")
 
-    loading_at = datetime.now()
-    new_exam = Examination(
-        id_user=user_id,
-        name_file=file_name,
-        loading_at=loading_at,
-        number_of_errors=len(errors),
-        course_compliance=course_compliance,
-        download_link_source=file_path,
-        download_link_edited=file_path,
-        errors="\n".join(errors) if errors else "Нет ошибок"
-    )
-
-    try:
-        session.add(new_exam)
-        session.commit()
-        logger.info(f"Examination saved with {len(errors)} errors")
-    except Exception as e:
-        session.rollback()
-        logger.error(f"Failed to save examination: {e}")
-        raise e
-
-    return errors
+    return {
+        "errors": errors,
+        "course_compliance": course_compliance
+    }
