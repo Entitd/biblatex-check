@@ -119,7 +119,7 @@ const PersonalAccount = () => {
                 setSources([]);
                 setCurrentSourceIndex(0);
                 setHasSource(false);
-                fetchFiles(); // Обновляем таблицу
+                fetchFiles();
             })
             .catch(error => console.error("Ошибка при сохранении bib файла:", error));
     };
@@ -173,7 +173,7 @@ const PersonalAccount = () => {
             })
             .then(() => {
                 setEditModalOpen(false);
-                fetchFiles(); // Обновляем таблицу после сохранения
+                fetchFiles();
             })
             .catch(error => console.error("Ошибка при сохранении изменений:", error));
     };
@@ -216,7 +216,7 @@ const PersonalAccount = () => {
                     if (!response.ok) throw new Error('Ошибка при загрузке файла');
                     return response.json();
                 })
-                .then(() => fetchFiles()) // Обновляем таблицу после загрузки
+                .then(() => fetchFiles())
                 .catch(error => console.error('Ошибка при загрузке файла:', error));
         });
     };
@@ -225,14 +225,13 @@ const PersonalAccount = () => {
         file.name_file.toLowerCase().includes(searchText.toLowerCase())
     );
 
-    // Функция для скачивания файла
     const downloadFile = async (fileUrl, fileName) => {
         if (!fileUrl) return;
         try {
             const response = await fetch(`http://localhost:8000/download/${fileUrl}`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${token}`, // Передаем токен из контекста
+                    'Authorization': `Bearer ${token}`,
                 },
             });
     
@@ -248,7 +247,7 @@ const PersonalAccount = () => {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            window.URL.revokeObjectURL(url); // Очищаем временный URL
+            window.URL.revokeObjectURL(url);
         } catch (error) {
             console.error("Ошибка при скачивании файла:", error);
             alert("Не удалось скачать файл: " + error.message);
@@ -339,24 +338,24 @@ const PersonalAccount = () => {
                                         <TableCell align="center">{file.number_of_errors}</TableCell>
                                         <TableCell align="center">{file.course_compliance}</TableCell>
                                         <TableCell align="center">
-                                        <Button
-                                            variant="contained"
-                                            size="small"
-                                            onClick={() => downloadFile(file.download_link_source, `${file.name_file}_source.bib`)}
-                                            sx={{ mr: 1, backgroundColor: 'secondary.main', '&:hover': { backgroundColor: 'secondary.dark' } }}
-                                        >
-                                            Исходный
-                                        </Button>
-                                        {file.download_link_edited && (
                                             <Button
                                                 variant="contained"
                                                 size="small"
-                                                onClick={() => downloadFile(file.download_link_edited, `${file.name_file}_edited.bib`)}
-                                                sx={{ backgroundColor: 'secondary.main', '&:hover': { backgroundColor: 'secondary.dark' } }}
+                                                onClick={() => downloadFile(file.download_link_source, `${file.name_file}_source.bib`)}
+                                                sx={{ mr: 1, backgroundColor: 'secondary.main', '&:hover': { backgroundColor: 'secondary.dark' } }}
                                             >
-                                                Отредактированный
+                                                Исходный
                                             </Button>
-                                        )}
+                                            {file.download_link_edited && (
+                                                <Button
+                                                    variant="contained"
+                                                    size="small"
+                                                    onClick={() => downloadFile(file.download_link_edited, `${file.name_file}_edited.bib`)}
+                                                    sx={{ backgroundColor: 'secondary.main', '&:hover': { backgroundColor: 'secondary.dark' } }}
+                                                >
+                                                    Отредактированный
+                                                </Button>
+                                            )}
                                         </TableCell>
                                         <TableCell align="center">{file.errors}</TableCell>
                                         <TableCell align="center">
@@ -390,11 +389,31 @@ const PersonalAccount = () => {
                     open={modalOpen}
                     onClose={() => setModalOpen(false)}
                     closeAfterTransition
-                    BackdropComponent={Backdrop}
-                    BackdropProps={{ timeout: 500, sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)' } }}
+                    slots={{ backdrop: Backdrop }}
+                    slotProps={{
+                        backdrop: {
+                            timeout: 500,
+                            sx: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                backdropFilter: 'blur(10px)',
+                                zIndex: -1, // Помещаем backdrop под модальное окно
+                            },
+                        },
+                    }}
                 >
                     <Fade in={modalOpen}>
-                        <Paper sx={{ width: { xs: 300, sm: 400, md: 500 }, p: 3, mx: "auto", mt: 5, borderRadius: '15px', boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)', background: 'background.paper', maxHeight: '80vh', overflowY: 'auto' }}>
+                        <Paper sx={{
+                            width: { xs: 300, sm: 400, md: 500 },
+                            p: 3,
+                            mx: "auto",
+                            mt: 5,
+                            borderRadius: '15px',
+                            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+                            background: 'background.paper',
+                            maxHeight: '80vh',
+                            overflowY: 'auto',
+                            zIndex: 1300, // Убеждаемся, что модалка выше backdrop
+                        }}>
                             <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>Создать bib-файл</Typography>
                             <FormControl fullWidth margin="normal">
                                 <InputLabel id="type-label">Тип записи</InputLabel>
@@ -442,8 +461,17 @@ const PersonalAccount = () => {
                     open={editModalOpen}
                     onClose={() => setEditModalOpen(false)}
                     closeAfterTransition
-                    BackdropComponent={Backdrop}
-                    BackdropProps={{ timeout: 500, sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)' } }}
+                    slots={{ backdrop: Backdrop }}
+                    slotProps={{
+                        backdrop: {
+                            timeout: 500,
+                            sx: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                backdropFilter: 'blur(10px)',
+                                zIndex: -1, // Помещаем backdrop под модальное окно
+                            },
+                        },
+                    }}
                 >
                     <Fade in={editModalOpen}>
                         <Paper
@@ -459,6 +487,7 @@ const PersonalAccount = () => {
                                 maxHeight: '80vh',
                                 display: 'flex',
                                 flexDirection: 'column',
+                                zIndex: 1300, // Убеждаемся, что модалка выше backdrop
                             }}
                         >
                             <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
@@ -472,7 +501,7 @@ const PersonalAccount = () => {
                                     onChange={(e) => setEditContent(e.target.value)}
                                     sx={{
                                         '& .MuiInputBase-root': { fontFamily: 'monospace' },
-                                        '& .MuiInputBase-input': { height: 'calc(80vh - 150px)', overflowY: 'auto' }, // Адаптивная высота
+                                        '& .MuiInputBase-input': { height: 'calc(80vh - 150px)', overflowY: 'auto' },
                                     }}
                                     inputProps={{ style: { resize: 'none' } }}
                                 />
