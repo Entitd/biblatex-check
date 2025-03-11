@@ -86,28 +86,16 @@ def logout(response: Response):
 @router.post("/api/refresh-token")
 def refresh_token(request: Request, response: Response, db: Session = Depends(get_db)):
     refresh_token = request.cookies.get("refresh_token")
-    logger.debug(f"Received refresh_token from cookie: {refresh_token}")
     if not refresh_token:
-        logger.error("No refresh_token in cookies")
-        raise HTTPException(status_code=401, detail="Refresh token required")
-    
+        raise HTTPException(status_code=401, detail="Refresh token отсутствует")
     try:
         payload = decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
-        logger.debug(f"Decoded payload: {payload}")
-        user_id = payload.get("sub")
-        if not user_id:
-            logger.error("No sub in refresh_token payload")
-            raise HTTPException(status_code=401, detail="Invalid refresh token")
-        user = db.query(User).filter(User.id_user == user_id).first()
-        if not user:
-            logger.error(f"User not found for ID: {user_id}")
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        access_token_expires = timedelta(minutes=30)
-        new_access_token = create_access_token(data={"sub": str(user.id_user)}, expires_delta=access_token_expires)
-        response.set_cookie(key="access_token", value=new_access_token, httponly=True, secure=False, samesite="lax", max_age=1800)
-        logger.info("Token refreshed successfully")
-        return {"message": "Токен обновлен"}
-    except PyJWTError as e:
-        logger.error(f"JWT decode error: {str(e)}")
-        raise HTTPException(status_code=401, detail=f"Invalid refresh token: {str(e)}")
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Недействительный refresh token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Недействительный refresh token")
+    access_token_expires = timedelta(minutes=30)
+    new_access_token = create_access_token(data={"sub": user_id}, expires_delta=access_token_expires)
+    response.set_cookie(key="access_token", value=new_access_token, httponly=True, secure=False, samesite="lax", max_age=1800)
+    return {"message": "Токен обновлен"}

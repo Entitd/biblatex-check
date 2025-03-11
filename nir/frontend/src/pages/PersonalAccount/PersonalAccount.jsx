@@ -1,4 +1,5 @@
 import React, { useContext, useState, useEffect, useRef } from "react";
+import axios from 'axios'; 
 import {
     Container, Box, Typography, TextField, Button, IconButton, Table, TableHead, TableBody, TableRow, TableCell,
     Select, MenuItem, InputLabel, FormControl, Modal, Paper, InputAdornment, TablePagination, Menu, Fade, Backdrop,
@@ -35,31 +36,25 @@ const PersonalAccount = () => {
 
     useEffect(() => {
         let isMounted = true;
-
-        const fetchFiles = () => {
-            console.log('Fetching files for user:', user?.id_user);
-            fetch(`http://localhost:8000/api/files?user_id=${user.id_user}`, {
-                method: 'GET',
-                credentials: 'include',
-            })
-                .then(response => {
-                    if (!response.ok) throw new Error('Ошибка при получении данных');
-                    return response.json();
-                })
-                .then(data => {
-                    if (isMounted) setFiles(data);
-                })
-                .catch(error => console.error("Error fetching data:", error));
+      
+        const fetchFiles = async () => {
+          console.log('Fetching files for user:', user?.id_user);
+          try {
+            const response = await axios.get(`http://localhost:8000/api/files?user_id=${user.id_user}`, { withCredentials: true });
+            if (isMounted) setFiles(response.data);
+          } catch (error) {
+            console.error("Error fetching files:", error.response?.data || error.message);
+          }
         };
-
+      
         if (user) {
-            fetchFiles();
+          fetchFiles();
         }
-
+      
         return () => {
-            isMounted = false;
+          isMounted = false;
         };
-    }, [user]);
+      }, [user]);
 
     const formatDate = (dateString) => {
         const date = new Date(dateString);
@@ -103,32 +98,23 @@ const PersonalAccount = () => {
         setSources(updatedSources);
     };
 
-    const saveBibFiles = () => {
+    const saveBibFiles = async () => {
         const formattedSources = sources.map((source, index) => ({
-            ...source.fields,
-            ID: `source${index + 1}`,
-            type: source.type,
+          ...source.fields,
+          ID: `source${index + 1}`,
+          type: source.type,
         }));
-
-        fetch("http://localhost:8000/api/save-bib", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: 'include',
-            body: JSON.stringify(formattedSources),
-        })
-            .then(response => {
-                if (!response.ok) throw new Error('Ошибка при сохранении');
-                return response.json();
-            })
-            .then(() => {
-                setModalOpen(false);
-                setSources([]);
-                setCurrentSourceIndex(0);
-                setHasSource(false);
-                fetchFiles();
-            })
-            .catch(error => console.error("Ошибка при сохранении bib файла:", error));
-    };
+        try {
+          await axios.post("http://localhost:8000/api/save-bib", formattedSources, { withCredentials: true });
+          setModalOpen(false);
+          setSources([]);
+          setCurrentSourceIndex(0);
+          setHasSource(false);
+          fetchFiles();
+        } catch (error) {
+          console.error("Error saving bib files:", error.response?.data || error.message);
+        }
+      };
 
     const navigateSource = (direction) => {
         if (direction === 'next' && currentSourceIndex < sources.length - 1) {
@@ -147,58 +133,40 @@ const PersonalAccount = () => {
         setHasSource(true);
     };
 
-    const handleEditFile = (file) => {
-        fetch(`http://localhost:8000/api/get-bib-content?file_id=${file.id}`, {
-            method: 'GET',
-            credentials: 'include',
-        })
-            .then(response => {
-                if (!response.ok) throw new Error('Ошибка при получении содержимого файла');
-                return response.json();
-            })
-            .then(data => {
-                setEditContent(data.content);
-                setEditFileId(file.id);
-                setEditModalOpen(true);
-            })
-            .catch(error => console.error("Ошибка при загрузке содержимого:", error));
-    };
+    const handleEditFile = async (file) => {
+        try {
+          const response = await axios.get(`http://localhost:8000/api/get-bib-content?file_id=${file.id}`, { withCredentials: true });
+          setEditContent(response.data.content);
+          setEditFileId(file.id);
+          setEditModalOpen(true);
+        } catch (error) {
+          console.error("Error fetching file content:", error.response?.data || error.message);
+        }
+      };
 
-    const handleSaveEditedFile = () => {
-        fetch("http://localhost:8000/api/save-bib", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: 'include',
-            body: JSON.stringify({ content: editContent, file_id: editFileId }),
-        })
-            .then(response => {
-                if (!response.ok) throw new Error('Ошибка при сохранении');
-                return response.json();
-            })
-            .then(() => {
-                setEditModalOpen(false);
-                fetchFiles();
-            })
-            .catch(error => console.error("Ошибка при сохранении изменений:", error));
-    };
+      const handleSaveEditedFile = async () => {
+        try {
+          await axios.post("http://localhost:8000/api/save-bib", { content: editContent, file_id: editFileId }, { withCredentials: true });
+          setEditModalOpen(false);
+          fetchFiles();
+        } catch (error) {
+          console.error("Error saving edited file:", error.response?.data || error.message);
+        }
+      };
 
-    const uploadBibFiles = (files) => {
-        Array.from(files).forEach((file) => {
-            const formData = new FormData();
-            formData.append('file', file);
-            fetch('http://localhost:8000/api/upload-bib', {
-                method: 'POST',
-                credentials: 'include',
-                body: formData,
-            })
-                .then(response => {
-                    if (!response.ok) throw new Error('Ошибка при загрузке файла');
-                    return response.json();
-                })
-                .then(() => fetchFiles())
-                .catch(error => console.error('Ошибка при загрузке файла:', error));
+    const uploadBibFiles = (event) => {
+        const files = event.target.files;
+        Array.from(files).forEach(async (file) => {
+          const formData = new FormData();
+          formData.append('file', file);
+          try {
+            await axios.post('http://localhost:8000/api/upload-bib', formData, { withCredentials: true });
+            fetchFiles();
+          } catch (error) {
+            console.error('Error uploading file:', error.response?.data || error.message);
+          }
         });
-    };
+      };
 
     const handleChangePage = (event, newPage) => setPage(newPage);
     const handleChangeRowsPerPage = (event) => {
@@ -227,27 +195,20 @@ const PersonalAccount = () => {
     const downloadFile = async (fileUrl, fileName) => {
         if (!fileUrl) return;
         try {
-            const response = await fetch(`http://localhost:8000/download/${fileUrl}`, {
-                method: 'GET',
-                credentials: 'include',
-            });
-            if (!response.ok) {
-                throw new Error(`Ошибка: ${response.status} ${response.statusText}`);
-            }
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = fileName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
+          const response = await axios.get(`http://localhost:8000/download/${fileUrl}`, { withCredentials: true, responseType: 'blob' });
+          const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
         } catch (error) {
-            console.error("Ошибка при скачивании файла:", error);
-            alert("Не удалось скачать файл: " + error.message);
+          console.error("Error downloading file:", error.response?.data || error.message);
+          alert("Не удалось скачать файл: " + error.message);
         }
-    };
+      };
 
     return (
         <>
