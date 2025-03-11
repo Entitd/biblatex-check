@@ -10,16 +10,15 @@ import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import { UserContext } from '../../UserContext';
 import { ThemeContext } from '../../components/ThemeToggleButton/ThemeContext';
 import ThemeToggleButton from "../../components/ThemeToggleButton/ThemeToggleButton.jsx";
-import { darkTheme, lightTheme } from '../../components/ThemeToggleButton/Themes';
 
 const PersonalAccount = () => {
-    const { user, token, logout } = useContext(UserContext);
-    const { isDarkMode, toggleTheme } = useContext(ThemeContext);
+    const { user, logout } = useContext(UserContext); // Убрали token
+    const { isDarkMode } = useContext(ThemeContext);
     const [files, setFiles] = useState([]);
-    const [modalOpen, setModalOpen] = useState(false); // Для создания нового файла
-    const [editModalOpen, setEditModalOpen] = useState(false); // Для редактирования
-    const [editContent, setEditContent] = useState(""); // Содержимое редактируемого файла
-    const [editFileId, setEditFileId] = useState(null); // ID редактируемого файла
+    const [modalOpen, setModalOpen] = useState(false);
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [editContent, setEditContent] = useState("");
+    const [editFileId, setEditFileId] = useState(null);
     const [sources, setSources] = useState([]);
     const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
     const [currentFields, setCurrentFields] = useState([]);
@@ -35,23 +34,32 @@ const PersonalAccount = () => {
     const dropRef = useRef(null);
 
     useEffect(() => {
+        let isMounted = true;
+
+        const fetchFiles = () => {
+            console.log('Fetching files for user:', user?.id_user);
+            fetch(`http://localhost:8000/api/files?user_id=${user.id_user}`, {
+                method: 'GET',
+                credentials: 'include',
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error('Ошибка при получении данных');
+                    return response.json();
+                })
+                .then(data => {
+                    if (isMounted) setFiles(data);
+                })
+                .catch(error => console.error("Error fetching data:", error));
+        };
+
         if (user) {
             fetchFiles();
         }
-    }, [user, token]);
 
-    const fetchFiles = () => {
-        fetch(`http://localhost:8000/api/files?user_id=${user.id_user}`, {
-            method: 'GET',
-            headers: { 'Authorization': `Bearer ${token}` },
-        })
-            .then(response => {
-                if (!response.ok) throw new Error('Ошибка при получении данных');
-                return response.json();
-            })
-            .then(data => setFiles(data))
-            .catch(error => console.error("Error fetching data:", error));
-    };
+        return () => {
+            isMounted = false;
+        };
+    }, [user]);
 
     const formatDate = (dateString) => {
         const date = new Date(dateString);
@@ -104,10 +112,8 @@ const PersonalAccount = () => {
 
         fetch("http://localhost:8000/api/save-bib", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-            },
+            headers: { "Content-Type": "application/json" },
+            credentials: 'include',
             body: JSON.stringify(formattedSources),
         })
             .then(response => {
@@ -144,7 +150,7 @@ const PersonalAccount = () => {
     const handleEditFile = (file) => {
         fetch(`http://localhost:8000/api/get-bib-content?file_id=${file.id}`, {
             method: 'GET',
-            headers: { 'Authorization': `Bearer ${token}` },
+            credentials: 'include',
         })
             .then(response => {
                 if (!response.ok) throw new Error('Ошибка при получении содержимого файла');
@@ -161,10 +167,8 @@ const PersonalAccount = () => {
     const handleSaveEditedFile = () => {
         fetch("http://localhost:8000/api/save-bib", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-            },
+            headers: { "Content-Type": "application/json" },
+            credentials: 'include',
             body: JSON.stringify({ content: editContent, file_id: editFileId }),
         })
             .then(response => {
@@ -178,9 +182,22 @@ const PersonalAccount = () => {
             .catch(error => console.error("Ошибка при сохранении изменений:", error));
     };
 
-    const uploadBibFile = (event) => {
-        const files = event.target.files;
-        if (files.length > 0) uploadBibFiles(files);
+    const uploadBibFiles = (files) => {
+        Array.from(files).forEach((file) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            fetch('http://localhost:8000/api/upload-bib', {
+                method: 'POST',
+                credentials: 'include',
+                body: formData,
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error('Ошибка при загрузке файла');
+                    return response.json();
+                })
+                .then(() => fetchFiles())
+                .catch(error => console.error('Ошибка при загрузке файла:', error));
+        });
     };
 
     const handleChangePage = (event, newPage) => setPage(newPage);
@@ -203,24 +220,6 @@ const PersonalAccount = () => {
         if (files.length > 0) uploadBibFiles(files);
     };
 
-    const uploadBibFiles = (files) => {
-        Array.from(files).forEach((file) => {
-            const formData = new FormData();
-            formData.append('file', file);
-            fetch('http://localhost:8000/api/upload-bib', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: formData,
-            })
-                .then(response => {
-                    if (!response.ok) throw new Error('Ошибка при загрузке файла');
-                    return response.json();
-                })
-                .then(() => fetchFiles())
-                .catch(error => console.error('Ошибка при загрузке файла:', error));
-        });
-    };
-
     const filteredFiles = files.filter((file) =>
         file.name_file.toLowerCase().includes(searchText.toLowerCase())
     );
@@ -230,15 +229,11 @@ const PersonalAccount = () => {
         try {
             const response = await fetch(`http://localhost:8000/download/${fileUrl}`, {
                 method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
+                credentials: 'include',
             });
-    
             if (!response.ok) {
                 throw new Error(`Ошибка: ${response.status} ${response.statusText}`);
             }
-    
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
@@ -313,7 +308,7 @@ const PersonalAccount = () => {
                     <Button variant="outlined" onClick={() => document.getElementById('upload-bib-file').click()} sx={{ borderColor: 'primary.main', color: 'primary.main', '&:hover': { backgroundColor: 'primary.light' } }}>
                         Загрузить bib-файл
                     </Button>
-                    <input id="upload-bib-file" type="file" style={{ display: 'none' }} onChange={uploadBibFile} />
+                    <input id="upload-bib-file" type="file" style={{ display: 'none' }} onChange={uploadBibFiles} />
                 </Box>
 
                 <Paper sx={{ borderRadius: '15px', boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)', overflow: 'hidden', background: 'background.paper', height: 'calc(100vh - 250px)', display: 'flex', flexDirection: 'column' }}>

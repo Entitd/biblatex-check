@@ -1,20 +1,21 @@
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import APIRouter, HTTPException, Depends, Response, Request
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from models.models import User
 from hashing import hash_password, verify_password
 from database import get_db
 from datetime import datetime, timedelta
-from jwt import encode, decode
+from jwt import encode, decode, PyJWTError
 import os
 from dotenv import load_dotenv
+import logging
 
-# Загрузка переменных окружения
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 load_dotenv()
-
-# Извлечение секретного ключа из переменной окружения
-SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key")  # Используйте свою переменную окружения
+SECRET_KEY = os.getenv("SECRET_KEY", "default_secret_key")
 ALGORITHM = "HS256"
 
 router = APIRouter()
@@ -23,57 +24,90 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
-class UserResponse(BaseModel):
-    id: int
-    username: str
-
-class UserCreate(BaseModel):
-    username: str
-    password: str
-
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
     encoded_jwt = encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-@router.post("/api/login")
-def login_user(user: UserLogin, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.username == user.username).first()
-    if not db_user or not verify_password(user.password, db_user.hashed_password):
-        raise HTTPException(status_code=400, detail="Неверный логин или пароль.")
+def create_refresh_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(days=7))
+    to_encode.update({"exp": expire})
+    encoded_jwt = encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
-    access_token_expires = timedelta(minutes=30)
-    access_token = create_access_token(
-        data={"sub": str(db_user.id_user)}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
-
-@router.post("/api/register")
-def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    hashed_password = hash_password(user.password)
-    db_user = User(username=user.username, hashed_password=hashed_password)
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return {"message": "Пользователь успешно зарегистрирован"}
-
-# Создаем зависимость для получения текущего пользователя
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
-
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+# Извлечение access_token из cookie
+def get_current_user(request: Request, db: Session = Depends(get_db)):
+    access_token = request.cookies.get("access_token")
+    logger.debug(f"Received access_token from cookie: {access_token}")
+    if not access_token:
+        logger.error("No access_token in cookies")
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
     try:
-        payload = decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
-        if user_id is None:
+        if not user_id:
+            logger.error("No sub in access_token payload")
             raise HTTPException(status_code=401, detail="Invalid token")
         user = db.query(User).filter(User.id_user == user_id).first()
-        if user is None:
+        if not user:
+            logger.error(f"User not found for ID: {user_id}")
             raise HTTPException(status_code=404, detail="User not found")
         return user
-    except jwt.PyJWTError:
+    except PyJWTError as e:
+        logger.error(f"JWT decode error: {str(e)}")
         raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+@router.post("/api/login")
+def login_user(response: Response, user: UserLogin, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.username == user.username).first()
+    if not db_user or not verify_password(user.password, db_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Неверный логин или пароль")
+
+    access_token_expires = timedelta(minutes=30)
+    access_token = create_access_token(data={"sub": str(db_user.id_user)}, expires_delta=access_token_expires)
+    refresh_token = create_refresh_token(data={"sub": str(db_user.id_user)})
+
+    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=1800)
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800)
+    logger.info(f"User {user.username} logged in successfully")
+    return {"message": "Успешный вход"}
+
+@router.post("/api/logout")
+def logout(response: Response):
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
+    logger.info("User logged out")
+    return {"message": "Успешный выход"}
+
+@router.post("/api/refresh-token")
+def refresh_token(request: Request, response: Response, db: Session = Depends(get_db)):
+    refresh_token = request.cookies.get("refresh_token")
+    logger.debug(f"Received refresh_token from cookie: {refresh_token}")
+    if not refresh_token:
+        logger.error("No refresh_token in cookies")
+        raise HTTPException(status_code=401, detail="Refresh token required")
+    
+    try:
+        payload = decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        logger.debug(f"Decoded payload: {payload}")
+        user_id = payload.get("sub")
+        if not user_id:
+            logger.error("No sub in refresh_token payload")
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        user = db.query(User).filter(User.id_user == user_id).first()
+        if not user:
+            logger.error(f"User not found for ID: {user_id}")
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        access_token_expires = timedelta(minutes=30)
+        new_access_token = create_access_token(data={"sub": str(user.id_user)}, expires_delta=access_token_expires)
+        response.set_cookie(key="access_token", value=new_access_token, httponly=True, secure=False, samesite="lax", max_age=1800)
+        logger.info("Token refreshed successfully")
+        return {"message": "Токен обновлен"}
+    except PyJWTError as e:
+        logger.error(f"JWT decode error: {str(e)}")
+        raise HTTPException(status_code=401, detail=f"Invalid refresh token: {str(e)}")

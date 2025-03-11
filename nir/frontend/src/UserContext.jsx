@@ -1,83 +1,82 @@
-// src/UserContext.js
 import React, { createContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
 export const UserContext = createContext();
 
 export const UserProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [token, setToken] = useState(null);
+  const [user, setUser] = useState(null);
 
-    // Получаем токен из localStorage только при монтировании
-    useEffect(() => {
-        const savedToken = localStorage.getItem('token');
-        if (savedToken) {
-            setToken(savedToken);
-        }
-    }, []);
+  const fetchProfile = async () => {
+    try {
+      const response = await axios.get('http://localhost:8000/api/profile', { withCredentials: true });
+      setUser(response.data);
+    } catch (error) {
+      console.error('Failed to fetch profile:', error.response?.data || error.message);
+      if (error.response?.status === 401) {
+        setUser(null);
+      }
+    }
+  };
 
-    // Добавляем интерсептор для автоматической подстановки токена в запросы
-    useEffect(() => {
-        const interceptor = axios.interceptors.request.use((config) => {
-            if (token) {
-                config.headers['Authorization'] = `Bearer ${token}`;
-            }
-            return config;
-        });
-        return () => {
-            axios.interceptors.request.eject(interceptor);
-        };
-    }, [token]);
+  useEffect(() => {
+    fetchProfile();
+  }, []);
 
-    // Получение профиля пользователя
-    const fetchProfile = async () => {
-        try {
-            const response = await axios.get('http://localhost:8000/api/profile');
-            console.log('Fetched profile data:', response.data); // Добавьте эту строку для проверки
-            setUser(response.data);
-        } catch (error) {
-            console.error('Failed to fetch profile', error);
-        }
-    };
-
-
-
-    useEffect(() => {
-        if (token) {
-            fetchProfile();
-        }
-    }, [token]);
-
-    const login = async (username, password) => {
-        try {
-            const response = await axios.post('http://localhost:8000/api/login', { username, password });
-            const accessToken = response.data.access_token;
-            if (!accessToken) {
-                throw new Error('No access token received');
-            }
-            localStorage.setItem('token', accessToken); // Сохраняем токен
-            setToken(accessToken);
-            setUser({ username }); // Простая установка пользователя
-        } catch (error) {
-            console.error('Login failed', error);
-        }
-    };
-
-    const logout = async () => {
-        try {
-            await axios.post('http://localhost:8000/api/logout');
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config;
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+          console.log('Received 401, attempting to refresh token...');
+          try {
+            const refreshResponse = await axios.post('http://localhost:8000/api/refresh-token', {}, { withCredentials: true });
+            console.log('Refresh successful:', refreshResponse.data);
+            console.log('Retrying original request:', originalRequest.url);
+            return axios(originalRequest);
+          } catch (refreshError) {
+            console.error('Refresh failed:', refreshError.response?.data || refreshError.message);
             setUser(null);
-            setToken(null);
-            localStorage.removeItem('token');
-            window.location.reload();
-        } catch (error) {
-            console.error('Logout failed', error);
+            return Promise.reject(refreshError);
+          }
         }
-    };
-
-    return (
-        <UserContext.Provider value={{ user, token, login, logout }}>
-            {children}
-        </UserContext.Provider>
+        console.log('Non-401 error or retry failed:', error.response?.data || error.message);
+        return Promise.reject(error);
+      }
     );
+    return () => axios.interceptors.response.eject(interceptor);
+  }, []);
+
+  const login = async (username, password) => {
+    try {
+      const response = await axios.post(
+        'http://localhost:8000/api/login',
+        { username, password },
+        { withCredentials: true }
+      );
+      console.log('Login successful:', response.data);
+      await fetchProfile();
+    } catch (error) {
+      console.error('Login failed:', error.response?.data || error.message);
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await axios.post('http://localhost:8000/api/logout', {}, { withCredentials: true });
+      setUser(null);
+      console.log('Logout successful');
+      window.location.reload();
+    } catch (error) {
+      console.error('Logout failed:', error.response?.data || error.message);
+    }
+  };
+
+  return (
+    <UserContext.Provider value={{ user, login, logout }}>
+      {children}
+    </UserContext.Provider>
+  );
 };
