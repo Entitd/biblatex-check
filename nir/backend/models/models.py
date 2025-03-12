@@ -26,6 +26,7 @@ class Examination(Base):
     download_link_source = Column(String)
     download_link_edited = Column(String)
     errors = Column(String)
+    last_active = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)  # Индекс для last_active
 
 class BlacklistedToken(Base):
     __tablename__ = 'blacklisted_tokens'
