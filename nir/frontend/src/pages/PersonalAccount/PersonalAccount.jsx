@@ -40,12 +40,20 @@ const PersonalAccount = () => {
   const [rowsPerPage, setRowsPerPage] = useState(6);
   const [anchorEl, setAnchorEl] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [sessionId] = useState(!user ? `guest_${Math.random().toString(36).substring(2)}` : null);
   const [error, setError] = useState(null);
 
+  // Используем sessionStorage для хранения sessionId
   const isGuest = !user;
-  const navigate = useNavigate();
+  const [sessionId] = useState(() => {
+    if (!isGuest) return null;
+    const existingSessionId = sessionStorage.getItem('guestSessionId');
+    if (existingSessionId) return existingSessionId;
+    const newSessionId = `guest_${Math.random().toString(36).substring(2)}`;
+    sessionStorage.setItem('guestSessionId', newSessionId);
+    return newSessionId;
+  });
 
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const dropRef = useRef(null);
@@ -65,8 +73,8 @@ const PersonalAccount = () => {
         setError(null);
       } catch (error) {
         if (error.response?.status === 401 && !isGuest) {
-          await refreshToken(); // Пробуем обновить токен
-          fetchFiles(); // Повторяем запрос
+          await refreshToken();
+          fetchFiles();
         } else {
           console.error("Error fetching files:", error.response?.data || error.message);
           setError("Не удалось загрузить файлы: " + (error.response?.data?.detail || error.message));
@@ -305,6 +313,7 @@ const PersonalAccount = () => {
   };
 
   return (
+    // Оставляем JSX без изменений, так как он не затрагивает логику sessionId
     <>
       <CssBaseline />
       <Container
