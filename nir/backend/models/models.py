@@ -17,7 +17,8 @@ class User(Base):
 class Examination(Base):
     __tablename__ = 'examinations'
     id_examination = Column(Integer, primary_key=True, index=True)
-    id_user = Column(Integer, index=True)
+    id_user = Column(Integer, nullable=True)  # Для авторизованных пользователей
+    session_id = Column(String, nullable=True)  # Для гостей
     name_file = Column(String)
     loading_at = Column(DateTime, default=datetime.utcnow)
     number_of_errors = Column(Integer)

@@ -80,7 +80,7 @@ const MainPage = () => {
                   color="primary"
                   size="large"
                   sx={{ mr: 2 }}
-                  href="/login" // Ссылка на страницу входа
+                  href="/login"
                 >
                   Войти
                 </Button>
@@ -88,9 +88,18 @@ const MainPage = () => {
                   variant="outlined"
                   color="primary"
                   size="large"
-                  href="/register" // Ссылка на страницу регистрации
+                  href="/register"
                 >
                   Зарегистрироваться
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  size="large"
+                  sx={{ ml: 2 }}
+                  href="/guest"
+                >
+                  Войти как гость
                 </Button>
               </Box>
             </Grid>

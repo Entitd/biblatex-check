@@ -39,9 +39,11 @@ def create_refresh_token(data: dict, expires_delta: timedelta = None):
     return encoded_jwt
 
 # Извлечение access_token из cookie
-def get_current_user(request: Request, db: Session = Depends(get_db)):
+def get_current_user(request: Request, db: Session = Depends(get_db), optional: bool = False):
     access_token = request.cookies.get("access_token")
     logger.debug(f"Received access_token from cookie: {access_token}")
+    if not access_token and optional:
+        return None
     if not access_token:
         logger.error("No access_token in cookies")
         raise HTTPException(status_code=401, detail="Not authenticated")
