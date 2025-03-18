@@ -865,62 +865,108 @@ const PersonalAccount = () => {
         </Modal>
 
         <Modal
-          open={errorModalOpen}
-          onClose={() => setErrorModalOpen(false)}
-          closeAfterTransition
-          slots={{ backdrop: Backdrop }}
-          slotProps={{
-            backdrop: {
-              timeout: 500,
-              sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
-            },
-          }}
-        >
-          <Fade in={errorModalOpen}>
-            <Paper
-              sx={{
-                width: { xs: '80%', sm: '80%', md: '80%' },
-                p: 3,
-                mx: "auto",
-                mt: 5,
-                borderRadius: '15px',
-                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-                background: 'background.paper',
-                height: 'auto',
-                maxHeight: '80vh',
-                display: 'flex',
-                flexDirection: 'column',
-                zIndex: 1300,
-              }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
-                Просмотр ошибок
-              </Typography>
-              <Box sx={{ flex: 1, overflowY: 'auto', mb: 2, width: '100%' }}>
-                {editContent.split('\n').map((line, index) => (
-                  <Typography
-                    key={index}
-                    sx={{
-                      mb: 1,
-                      textDecoration: editedLines[index] ? 'underline red' : 'none',
-                      color: editedLines[index] ? 'error.main' : 'text.primary',
-                    }}
-                  >
-                    {line} {editedLines[index] ? `- ${editedLines[index]}` : ''}
-                  </Typography>
-                ))}
-              </Box>
-              <Button
-                fullWidth
-                variant="contained"
-                onClick={() => setErrorModalOpen(false)}
-                sx={{ backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' }, width: '100%' }}
+  open={errorModalOpen}
+  onClose={() => setErrorModalOpen(false)}
+  closeAfterTransition
+  slots={{ backdrop: Backdrop }}
+  slotProps={{
+    backdrop: {
+      timeout: 500,
+      sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
+    },
+  }}
+>
+  <Fade in={errorModalOpen}>
+    <Paper
+      sx={{
+        width: { xs: '80%', sm: '80%', md: '80%' },
+        p: 3,
+        mx: "auto",
+        mt: 5,
+        borderRadius: '15px',
+        boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+        background: 'background.paper',
+        height: 'auto',
+        maxHeight: '80vh',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 1300,
+      }}
+    >
+      <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
+        Просмотр ошибок
+      </Typography>
+      <Box sx={{ flex: 1, overflowY: 'auto', mb: 2, width: '100%' }}>
+        {/* Сначала выводим ошибки */}
+        {Object.entries(editedLines).length > 0 ? (
+          <>
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main' }}>
+              Обнаруженные ошибки:
+            </Typography>
+            {Object.entries(editedLines).map(([lineNumber, error], index) => (
+              <Typography
+                key={index}
+                sx={{
+                  mb: 1,
+                  color: 'error.main',
+                }}
               >
-                Закрыть
-              </Button>
-            </Paper>
-          </Fade>
-        </Modal>
+                {error}
+              </Typography>
+            ))}
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 2, mb: 1, color: 'text.primary' }}>
+              Содержимое файла:
+            </Typography>
+          </>
+        ) : (
+          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'text.secondary' }}>
+            Ошибок не обнаружено
+          </Typography>
+        )}
+        {/* Выводим содержимое файла с подсветкой ошибок */}
+        {editContent && (
+          <>
+            {editContent.split('\n').reduce((acc, line, index) => {
+              // Проверяем начало новой записи
+              if (line.trim().startsWith('@')) {
+                acc.push({ startIndex: index, lines: [line], hasError: false });
+              } else if (acc.length > 0) {
+                acc[acc.length - 1].lines.push(line);
+              }
+              return acc;
+            }, []).map((entry, entryIndex) => {
+              // Проверяем, есть ли ошибка для этой записи
+              const errorLineNumber = Object.keys(editedLines).find(lineNum =>
+                parseInt(lineNum) >= entry.startIndex && parseInt(lineNum) < (entry.startIndex + entry.lines.length)
+              );
+              const hasError = !!errorLineNumber;
+              return entry.lines.map((line, lineIndex) => (
+                <Typography
+                  key={`${entryIndex}-${lineIndex}`}
+                  sx={{
+                    mb: 1,
+                    textDecoration: hasError ? 'underline red' : 'none',
+                    color: hasError ? 'error.main' : 'text.primary',
+                  }}
+                >
+                  {line}
+                </Typography>
+              ));
+            })}
+          </>
+        )}
+      </Box>
+      <Button
+        fullWidth
+        variant="contained"
+        onClick={() => setErrorModalOpen(false)}
+        sx={{ backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' }, width: '100%' }}
+      >
+        Закрыть
+      </Button>
+    </Paper>
+  </Fade>
+</Modal>
       </Container>
     </>
   );
