@@ -64,29 +64,32 @@ const PersonalAccount = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const dropRef = useRef(null);
 
+  // Выносим fetchFiles на уровень компонента
+  const fetchFiles = async () => {
+    try {
+      const endpoint = isGuest
+        ? `/api/guest/files?sessionId=${sessionId}`
+        : `/api/files?user_id=${user.id_user}`;
+      const response = await (isGuest ? guestAxios : authAxios).get(endpoint);
+      setFiles(response.data);
+      setError(null);
+    } catch (error) {
+      if (error.response?.status === 401 && !isGuest) {
+        await refreshToken();
+        fetchFiles();
+      } else {
+        console.error("Error fetching files:", error.response?.data || error.message);
+        setError("Не удалось загрузить файлы: " + (error.response?.data?.detail || error.message));
+      }
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
 
-    const fetchFiles = async () => {
-      try {
-        const endpoint = isGuest
-          ? `/api/guest/files?sessionId=${sessionId}`
-          : `/api/files?user_id=${user.id_user}`;
-        const response = await (isGuest ? guestAxios : authAxios).get(endpoint);
-        if (isMounted) setFiles(response.data);
-        setError(null);
-      } catch (error) {
-        if (error.response?.status === 401 && !isGuest) {
-          await refreshToken();
-          fetchFiles();
-        } else {
-          console.error("Error fetching files:", error.response?.data || error.message);
-          setError("Не удалось загрузить файлы: " + (error.response?.data?.detail || error.message));
-        }
-      }
-    };
-
-    fetchFiles();
+    if (isMounted) {
+      fetchFiles();
+    }
 
     return () => {
       isMounted = false;
@@ -110,6 +113,36 @@ const PersonalAccount = () => {
       case "misc": return ["author", "title", "urldate", "url"];
       default: return [];
     }
+  };
+  
+  const getRequiredFieldsForType = (type) => {
+    switch (type) {
+      case "article": return ["author", "title", "journal", "year"];
+      case "book": return ["author", "title", "publisher", "year"];
+      case "conference": return ["author", "title", "booktitle", "year"];
+      case "techReport": return ["author", "title", "institution", "year"];
+      case "inProceedings": return ["author", "title", "booktitle", "year"];
+      case "online": return ["author", "title", "url", "urldate"];
+      case "manual": return ["title", "organization", "year"];
+      case "misc": return ["title"];
+      default: return [];
+    }
+  };
+  
+  // Новая функция для получения всех полей из файла
+  const getAllFieldsFromSource = (source, type) => {
+    const standardFields = getFieldsForType(type);
+    const requiredFields = getRequiredFieldsForType(type);
+    const allFieldsInSource = Object.keys(source.fields); // Все поля из файла
+  
+    // Стандартные поля (включая обязательные)
+    const standard = standardFields.filter(field => allFieldsInSource.includes(field));
+    const required = requiredFields.filter(field => allFieldsInSource.includes(field));
+  
+    // Необязательные поля (те, что есть в файле, но не входят в стандартный список)
+    const optional = allFieldsInSource.filter(field => !standardFields.includes(field));
+  
+    return { standard, required, optional };
   };
 
   const parseBibFile = (content) => {
@@ -148,7 +181,6 @@ const PersonalAccount = () => {
       sources.push({ ...currentSource });
     }
   
-    // Если sourceLines пуст, добавляем 0 как запасной вариант
     if (sourceLines.length === 0 && sources.length > 0) {
       sourceLines.push(0);
     }
@@ -158,15 +190,33 @@ const PersonalAccount = () => {
     return { sources: sources.length > 0 ? sources : [{ type: '', fields: {} }], sourceLines };
   };
 
-  const handleTypeChange = (index, type) => {
+  const handleTypeChange = (index, type, isEditing = false) => {
     const updatedSources = [...sources];
+    const currentFields = updatedSources[index].fields;
+  
     updatedSources[index].type = type;
-    updatedSources[index].fields = getFieldsForType(type).reduce((acc, field) => {
-      acc[field] = updatedSources[index].fields[field] || '';
-      return acc;
-    }, {});
+  
+    if (isEditing) {
+      // При редактировании сохраняем все существующие поля
+      const standardFields = getFieldsForType(type);
+      updatedSources[index].fields = {
+        ...currentFields, // Сохраняем все текущие поля
+        ...standardFields.reduce((acc, field) => {
+          acc[field] = currentFields[field] || '';
+          return acc;
+        }, {}),
+      };
+    } else {
+      // При создании используем только стандартные поля
+      const standardFields = getFieldsForType(type);
+      updatedSources[index].fields = standardFields.reduce((acc, field) => {
+        acc[field] = currentFields[field] || '';
+        return acc;
+      }, {});
+    }
+  
     setSources(updatedSources);
-    if (index === currentSourceIndex) setCurrentFields(getFieldsForType(type));
+    setCurrentFields(getFieldsForType(type));
   };
 
   const addSource = () => {
@@ -204,7 +254,7 @@ const PersonalAccount = () => {
       setSources([]);
       setCurrentSourceIndex(0);
       setHasSource(false);
-      fetchFiles();
+      fetchFiles(); // Теперь fetchFiles доступна
     } catch (error) {
       if (error.response?.status === 401 && !isGuest) {
         await refreshToken();
@@ -228,9 +278,15 @@ const PersonalAccount = () => {
   };
 
   const handleCreateBibFile = () => {
+    const initialType = 'article'; // Устанавливаем тип по умолчанию, например, article
+    const initialFields = getFieldsForType(initialType).reduce((acc, field) => {
+      acc[field] = '';
+      return acc;
+    }, {});
     setModalOpen(true);
-    setSources([{ type: '', fields: {} }]);
+    setSources([{ type: initialType, fields: initialFields }]);
     setCurrentSourceIndex(0);
+    setCurrentFields(getFieldsForType(initialType));
     setHasSource(true);
   };
 
@@ -250,13 +306,12 @@ const PersonalAccount = () => {
   
       if (!sourceLines || sourceLines.length === 0) {
         console.warn("No source lines detected, using default mapping.");
-        // Если sourceLines пуст, предполагаем, что все ошибки относятся к первому источнику
         if (file.errors && typeof file.errors === 'string') {
           const errorLinesArray = file.errors.split('\n').filter(line => line.trim());
           errorLinesArray.forEach(error => {
             const match = error.match(/\(строка (\d+)\)$/);
             if (match) {
-              errorLines[0] = error.trim(); // Присваиваем ошибку первому источнику
+              errorLines[0] = error.trim();
             }
           });
         }
@@ -273,7 +328,7 @@ const PersonalAccount = () => {
                 return lineNumber >= startLine && lineNumber < nextStartLine;
               });
             }
-            if (sourceIndex === -1 && parsedSources.length > 0) sourceIndex = 0; // По умолчанию первый источник
+            if (sourceIndex === -1 && parsedSources.length > 0) sourceIndex = 0;
             if (sourceIndex !== -1 && sourceIndex < parsedSources.length) {
               errorLines[sourceIndex] = error.trim();
             }
@@ -283,7 +338,7 @@ const PersonalAccount = () => {
   
       setSources(parsedSources);
       setCurrentSourceIndex(0);
-      setCurrentFields(getFieldsForType(parsedSources[0]?.type || ''));
+      setCurrentFields(getFieldsForType(parsedSources[0]?.type || '')); // Это больше не нужно
       setEditContent(content);
       setEditFileId(file.id);
       setEditedLines(errorLines);
@@ -319,19 +374,33 @@ const PersonalAccount = () => {
         setError("Ошибка: ID файла не определён.");
         return;
       }
-      const endpoint = isGuest
-        ? `/api/guest/save-bib?file_id=${editFileId}&sessionId=${sessionId}`
-        : `/api/save-bib?file_id=${editFileId}`;
-      const response = await (isGuest ? guestAxios : authAxios).post(endpoint, { content }, { withCredentials: true });
+      const endpoint = isGuest ? "/api/guest/save-bib" : "/api/save-bib";
+      const payload = isGuest
+        ? { sessionId, file_id: editFileId, content }
+        : { file_id: editFileId, content };
+      const response = await (isGuest ? guestAxios : authAxios).post(endpoint, payload, { withCredentials: true });
   
       console.log("Save response:", response.data);
       if (response.data.errors) {
         const { sourceLines } = parseBibFile(content);
         const errorLines = {};
-        const errorLinesArray = response.data.errors.split('\n').filter(line => line.trim());
+        let errorLinesArray = [];
+  
+        // Проверяем тип response.data.errors
+        if (typeof response.data.errors === 'string') {
+          errorLinesArray = response.data.errors.split('\n').filter(line => line.trim());
+        } else if (Array.isArray(response.data.errors)) {
+          errorLinesArray = response.data.errors; // Если это массив, используем его напрямую
+        } else if (typeof response.data.errors === 'object') {
+          errorLinesArray = Object.values(response.data.errors); // Если это объект, берём значения
+        } else {
+          console.warn("Unexpected errors format:", response.data.errors);
+          errorLinesArray = [];
+        }
+  
         if (!sourceLines || sourceLines.length === 0) {
           console.warn("No source lines detected after save.");
-          errorLines[0] = response.data.errors; // По умолчанию первая ошибка
+          errorLines[0] = errorLinesArray.join('\n');
         } else {
           errorLinesArray.forEach(error => {
             const match = error.match(/\(строка (\d+)\)$/);
@@ -354,11 +423,12 @@ const PersonalAccount = () => {
         setEditedLines(errorLines);
         setError(null);
         setEditModalOpen(true);
+        fetchFiles(); // Добавляем вызов fetchFiles здесь, чтобы обновить список файлов
       } else {
         setEditedLines({});
         setError(null);
         setEditModalOpen(false);
-        fetchFiles();
+        fetchFiles(); // Оставляем вызов fetchFiles здесь
       }
     } catch (error) {
       if (error.response?.status === 401 && !isGuest) {
@@ -426,7 +496,7 @@ const PersonalAccount = () => {
         } else {
           await authAxios.post('/api/upload-bib', formData);
         }
-        fetchFiles();
+        fetchFiles(); // Теперь fetchFiles доступна
       } catch (error) {
         if (error.response?.status === 401 && !isGuest) {
           await refreshToken();
@@ -483,7 +553,13 @@ const PersonalAccount = () => {
         downloadFile(fileUrl, fileName);
       } else {
         console.error("Error downloading file:", error.response?.data || error.message);
-        setError("Не удалось скачать файл: " + (error.response?.data?.detail || error.message));
+        let errorMessage = "Не удалось скачать файл";
+        if (error.response?.data?.detail) {
+          errorMessage += `: ${error.response.data.detail}`;
+        } else if (error.message) {
+          errorMessage += `: ${error.message}`;
+        }
+        setError(errorMessage);
       }
     }
   };
@@ -665,16 +741,21 @@ const PersonalAccount = () => {
                       )}
                     </TableCell>
                     <TableCell align="center" sx={{ py: 1.5 }}>
-                      {file.number_of_errors > 0 && (
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={() => handleShowErrors(file)}
-                          sx={{ fontSize: '0.8rem', borderColor: 'error.main', color: 'error.main', '&:hover': { backgroundColor: 'error.light' } }}
-                        >
-                          Просмотреть
-                        </Button>
-                      )}
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => handleShowErrors(file)}
+                        sx={{
+                          fontSize: '0.8rem',
+                          borderColor: file.number_of_errors > 0 ? 'error.main' : 'primary.main',
+                          color: file.number_of_errors > 0 ? 'error.main' : 'primary.main',
+                          '&:hover': {
+                            backgroundColor: file.number_of_errors > 0 ? 'error.light' : 'primary.light',
+                          },
+                        }}
+                      >
+                        Просмотреть
+                      </Button>
                     </TableCell>
                     <TableCell align="center" sx={{ py: 1.5 }}>
                       <Button
@@ -703,170 +784,8 @@ const PersonalAccount = () => {
         </Paper>
 
         <Modal
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          closeAfterTransition
-          slots={{ backdrop: Backdrop }}
-          slotProps={{
-            backdrop: {
-              timeout: 500,
-              sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
-            },
-          }}
-        >
-          <Fade in={modalOpen}>
-            <Paper sx={{
-              width: { xs: '80%', sm: '80%', md: '80%' },
-              p: 3,
-              mx: "auto",
-              mt: 5,
-              borderRadius: '15px',
-              boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-              background: 'background.paper',
-              maxHeight: '80vh',
-              overflowY: 'auto',
-              zIndex: 1300,
-            }}>
-              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>Создать bib-файл</Typography>
-              <FormControl fullWidth margin="normal" sx={{ width: '100%' }}>
-                <InputLabel id="type-label">Тип записи</InputLabel>
-                <Select
-                  labelId="type-label"
-                  value={sources[currentSourceIndex]?.type || ''}
-                  onChange={(e) => handleTypeChange(currentSourceIndex, e.target.value)}
-                  sx={{ width: '100%' }}
-                >
-                  <MenuItem value="article">Article</MenuItem>
-                  <MenuItem value="book">Book</MenuItem>
-                  <MenuItem value="conference">Conference</MenuItem>
-                  <MenuItem value="techReport">Tech Report</MenuItem>
-                  <MenuItem value="inProceedings">In Proceedings</MenuItem>
-                  <MenuItem value="online">Online</MenuItem>
-                  <MenuItem value="manual">Manual</MenuItem>
-                  <MenuItem value="misc">Misc</MenuItem>
-                </Select>
-              </FormControl>
-              {sources.length > 0 && (
-                <Box my={2} sx={{ width: '100%' }}>
-                  <Typography variant="subtitle1">Источник {currentSourceIndex + 1}</Typography>
-                  {currentFields.map((field) => (
-                    <TextField
-                      key={field}
-                      fullWidth
-                      margin="dense"
-                      label={field}
-                      value={sources[currentSourceIndex].fields[field] || ''}
-                      onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
-                      sx={{ width: '100%' }}
-                    />
-                  ))}
-                </Box>
-              )}
-              <Box display="flex" justifyContent="space-between" mt={2} sx={{ width: '100%' }}>
-                <Button variant="outlined" onClick={() => navigateSource('prev')} disabled={currentSourceIndex === 0} sx={{ width: '48%' }}>Предыдущий</Button>
-                <Button variant="outlined" onClick={() => navigateSource('next')} disabled={currentSourceIndex === sources.length - 1} sx={{ width: '48%' }}>Следующий</Button>
-              </Box>
-              <Button fullWidth variant="contained" onClick={addSource} sx={{ mt: 2, width: '100%' }}>Добавить источник</Button>
-              {hasSource && <Button fullWidth variant="outlined" onClick={saveBibFiles} sx={{ mt: 2, width: '100%' }}>Сохранить</Button>}
-            </Paper>
-          </Fade>
-        </Modal>
-
-        <Modal
-          open={editModalOpen}
-          onClose={() => setEditModalOpen(false)}
-          closeAfterTransition
-          slots={{ backdrop: Backdrop }}
-          slotProps={{
-            backdrop: {
-              timeout: 500,
-              sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
-            },
-          }}
-        >
-          <Fade in={editModalOpen}>
-            <Paper
-              sx={{
-                width: { xs: '80%', sm: '80%', md: '80%' },
-                p: 3,
-                mx: "auto",
-                mt: 5,
-                borderRadius: '15px',
-                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-                background: 'background.paper',
-                height: 'auto',
-                maxHeight: '80vh',
-                display: 'flex',
-                flexDirection: 'column',
-                zIndex: 1300,
-              }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
-                Редактировать bib-файл
-              </Typography>
-              {sources.length > 0 && (
-  <Box sx={{ flex: 1, overflowY: 'auto', mb: 2, width: '100%' }}>
-    {sources.map((source, index) => {
-      const hasError = editedLines[index] !== undefined;
-      const errorMessage = hasError ? editedLines[index] : '';
-      console.log(`Source ${index}: hasError=${hasError}, errorMessage=${errorMessage}`);
-      return (
-        <Box key={index} mb={2} sx={{ width: '100%', border: hasError ? '2px solid red' : 'none', borderRadius: '4px', padding: '8px' }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: hasError ? 'error.main' : 'text.primary' }}>
-            Источник {index + 1} {hasError && '(Содержит ошибки)'}
-          </Typography>
-                        <FormControl fullWidth margin="normal" sx={{ width: '100%' }}>
-                          <InputLabel id={`type-label-${index}`}>Тип записи</InputLabel>
-                          <Select
-                            labelId={`type-label-${index}`}
-                            value={source.type || ''}
-                            onChange={(e) => handleTypeChange(index, e.target.value)}
-                            sx={{ width: '100%', ...(hasError && { borderColor: 'error.main' }) }}
-                          >
-                            <MenuItem value="article">Article</MenuItem>
-                            <MenuItem value="book">Book</MenuItem>
-                            <MenuItem value="conference">Conference</MenuItem>
-                            <MenuItem value="techReport">Tech Report</MenuItem>
-                            <MenuItem value="inProceedings">In Proceedings</MenuItem>
-                            <MenuItem value="online">Online</MenuItem>
-                            <MenuItem value="manual">Manual</MenuItem>
-                            <MenuItem value="misc">Misc</MenuItem>
-                          </Select>
-                        </FormControl>
-                        {getFieldsForType(source.type || '').map((field) => (
-                          <TextField
-                            key={field}
-                            fullWidth
-                            margin="dense"
-                            label={field}
-                            value={source.fields[field] || ''}
-                            onChange={(e) => handleSourceChange(index, field, e.target.value)}
-                            sx={{
-                              width: '100%',
-                              ...(hasError && { '& .MuiInputBase-input': { color: 'error.main', borderBottom: '2px solid red' } }),
-                            }}
-                            error={hasError}
-                            helperText={hasError ? errorMessage : ''}
-                          />
-                        ))}
-                      </Box>
-                    );
-                  })}
-                </Box>
-              )}
-              <Box display="flex" justifyContent="space-between" mt={2} sx={{ width: '100%' }}>
-                <Button variant="outlined" onClick={() => navigateSource('prev')} disabled={currentSourceIndex === 0} sx={{ width: '48%' }}>Предыдущий</Button>
-                <Button variant="outlined" onClick={() => navigateSource('next')} disabled={currentSourceIndex === sources.length - 1} sx={{ width: '48%' }}>Следующий</Button>
-              </Box>
-              <Button fullWidth variant="contained" onClick={addSource} sx={{ mt: 2, width: '100%' }}>Добавить источник</Button>
-              <Button fullWidth variant="outlined" onClick={handleSaveEditedFile} sx={{ mt: 2, width: '100%' }}>Сохранить</Button>
-            </Paper>
-          </Fade>
-        </Modal>
-
-        <Modal
-  open={errorModalOpen}
-  onClose={() => setErrorModalOpen(false)}
+  open={modalOpen}
+  onClose={() => setModalOpen(false)}
   closeAfterTransition
   slots={{ backdrop: Backdrop }}
   slotProps={{
@@ -876,7 +795,77 @@ const PersonalAccount = () => {
     },
   }}
 >
-  <Fade in={errorModalOpen}>
+  <Fade in={modalOpen}>
+    <Paper sx={{
+      width: { xs: '80%', sm: '80%', md: '80%' },
+      p: 3,
+      mx: "auto",
+      mt: 5,
+      borderRadius: '15px',
+      boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+      background: 'background.paper',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      zIndex: 1300,
+    }}>
+      <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>Создать bib-файл</Typography>
+      <FormControl fullWidth margin="normal" sx={{ width: '100%' }}>
+        <InputLabel id="type-label">Тип записи</InputLabel>
+        <Select
+          labelId="type-label"
+          value={sources[currentSourceIndex]?.type || ''}
+          onChange={(e) => handleTypeChange(currentSourceIndex, e.target.value)}
+          sx={{ width: '100%' }}
+        >
+          <MenuItem value="article">Article</MenuItem>
+          <MenuItem value="book">Book</MenuItem>
+          <MenuItem value="conference">Conference</MenuItem>
+          <MenuItem value="techReport">Tech Report</MenuItem>
+          <MenuItem value="inProceedings">In Proceedings</MenuItem>
+          <MenuItem value="online">Online</MenuItem>
+          <MenuItem value="manual">Manual</MenuItem>
+          <MenuItem value="misc">Misc</MenuItem>
+        </Select>
+      </FormControl>
+      {sources.length > 0 && (
+        <Box my={2} sx={{ width: '100%' }}>
+          <Typography variant="subtitle1">Источник {currentSourceIndex + 1}</Typography>
+          {currentFields.map((field) => (
+            <TextField
+              key={field}
+              fullWidth
+              margin="dense"
+              label={field}
+              value={sources[currentSourceIndex].fields[field] || ''}
+              onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
+              sx={{ width: '100%' }}
+            />
+          ))}
+        </Box>
+      )}
+      <Box display="flex" justifyContent="space-between" mt={2} sx={{ width: '100%' }}>
+        <Button variant="outlined" onClick={() => navigateSource('prev')} disabled={currentSourceIndex === 0} sx={{ width: '48%' }}>Предыдущий</Button>
+        <Button variant="outlined" onClick={() => navigateSource('next')} disabled={currentSourceIndex === sources.length - 1} sx={{ width: '48%' }}>Следующий</Button>
+      </Box>
+      <Button fullWidth variant="contained" onClick={addSource} sx={{ mt: 2, width: '100%' }}>Добавить источник</Button>
+      {hasSource && <Button fullWidth variant="outlined" onClick={saveBibFiles} sx={{ mt: 2, width: '100%' }}>Сохранить</Button>}
+    </Paper>
+  </Fade>
+</Modal>
+
+<Modal
+  open={editModalOpen}
+  onClose={() => setEditModalOpen(false)}
+  closeAfterTransition
+  slots={{ backdrop: Backdrop }}
+  slotProps={{
+    backdrop: {
+      timeout: 500,
+      sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
+    },
+  }}
+>
+  <Fade in={editModalOpen}>
     <Paper
       sx={{
         width: { xs: '80%', sm: '80%', md: '80%' },
@@ -894,79 +883,208 @@ const PersonalAccount = () => {
       }}
     >
       <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
-        Просмотр ошибок
+        Редактировать bib-файл
       </Typography>
-      <Box sx={{ flex: 1, overflowY: 'auto', mb: 2, width: '100%' }}>
-        {/* Сначала выводим ошибки */}
-        {Object.entries(editedLines).length > 0 ? (
-          <>
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main' }}>
-              Обнаруженные ошибки:
-            </Typography>
-            {Object.entries(editedLines).map(([lineNumber, error], index) => (
-              <Typography
-                key={index}
-                sx={{
-                  mb: 1,
-                  color: 'error.main',
-                }}
-              >
-                {error}
-              </Typography>
-            ))}
-            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 2, mb: 1, color: 'text.primary' }}>
-              Содержимое файла:
-            </Typography>
-          </>
-        ) : (
-          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'text.secondary' }}>
-            Ошибок не обнаружено
-          </Typography>
-        )}
-        {/* Выводим содержимое файла с подсветкой ошибок */}
-        {editContent && (
-          <>
-            {editContent.split('\n').reduce((acc, line, index) => {
-              // Проверяем начало новой записи
-              if (line.trim().startsWith('@')) {
-                acc.push({ startIndex: index, lines: [line], hasError: false });
-              } else if (acc.length > 0) {
-                acc[acc.length - 1].lines.push(line);
+      {sources.length > 0 && (
+        <Box sx={{ flex: 1, overflowY: 'auto', mb: 2, width: '100%' }}>
+          {sources.map((source, index) => {
+            const { standard, required, optional } = getAllFieldsFromSource(source, source.type || 'misc');
+            const missingFields = required.filter(field => !source.fields[field]);
+
+            const updatedFields = { ...source.fields };
+            missingFields.forEach(field => {
+              if (!updatedFields[field]) {
+                updatedFields[field] = '';
               }
-              return acc;
-            }, []).map((entry, entryIndex) => {
-              // Проверяем, есть ли ошибка для этой записи
-              const errorLineNumber = Object.keys(editedLines).find(lineNum =>
-                parseInt(lineNum) >= entry.startIndex && parseInt(lineNum) < (entry.startIndex + entry.lines.length)
-              );
-              const hasError = !!errorLineNumber;
-              return entry.lines.map((line, lineIndex) => (
-                <Typography
-                  key={`${entryIndex}-${lineIndex}`}
-                  sx={{
-                    mb: 1,
-                    textDecoration: hasError ? 'underline red' : 'none',
-                    color: hasError ? 'error.main' : 'text.primary',
-                  }}
-                >
-                  {line}
+            });
+
+            const hasError = editedLines[index] !== undefined || missingFields.length > 0;
+            const errorMessage = editedLines[index] || (missingFields.length > 0 ? `Отсутствуют обязательные поля: ${missingFields.join(', ')}` : '');
+
+            return (
+              <Box key={index} mb={2} sx={{ width: '100%', border: hasError ? '2px solid red' : 'none', borderRadius: '4px', padding: '8px' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: hasError ? 'error.main' : 'text.primary' }}>
+                  Источник {index + 1} {hasError && '(Содержит ошибки)'}
                 </Typography>
-              ));
-            })}
-          </>
-        )}
+                <FormControl fullWidth margin="normal" sx={{ width: '100%' }}>
+                  <InputLabel id={`type-label-${index}`}>Тип записи</InputLabel>
+                  <Select
+                    labelId={`type-label-${index}`}
+                    value={source.type || ''}
+                    onChange={(e) => handleTypeChange(index, e.target.value, true)} // Передаём isEditing=true
+                    sx={{ width: '100%', ...(hasError && { borderColor: 'error.main' }) }}
+                  >
+                    <MenuItem value="article">Article</MenuItem>
+                    <MenuItem value="book">Book</MenuItem>
+                    <MenuItem value="conference">Conference</MenuItem>
+                    <MenuItem value="techReport">Tech Report</MenuItem>
+                    <MenuItem value="inProceedings">In Proceedings</MenuItem>
+                    <MenuItem value="online">Online</MenuItem>
+                    <MenuItem value="manual">Manual</MenuItem>
+                    <MenuItem value="misc">Misc</MenuItem>
+                  </Select>
+                </FormControl>
+
+                {/* Отображаем стандартные поля */}
+                {standard.map((field) => (
+                  <TextField
+                    key={field}
+                    fullWidth
+                    margin="dense"
+                    label={field}
+                    value={updatedFields[field] || ''}
+                    onChange={(e) => handleSourceChange(index, field, e.target.value)}
+                    sx={{
+                      width: '100%',
+                      '& .MuiInputBase-input': {
+                        textDecoration: missingFields.includes(field) ? 'underline red' : 'none',
+                        color: missingFields.includes(field) ? 'error.main' : 'text.primary',
+                      },
+                    }}
+                    error={missingFields.includes(field)}
+                    helperText={missingFields.includes(field) ? 'Обязательное поле, добавлено автоматически' : ''}
+                  />
+                ))}
+
+                {/* Отображаем необязательные поля */}
+                {optional.map((field) => (
+                  <Box key={field} display="flex" alignItems="center" sx={{ width: '100%' }}>
+                    <TextField
+                      fullWidth
+                      margin="dense"
+                      label={`${field} (необязательное)`}
+                      value={updatedFields[field] || ''}
+                      onChange={(e) => handleSourceChange(index, field, e.target.value)}
+                      sx={{
+                        width: '100%',
+                        '& .MuiInputBase-input': {
+                          color: 'text.secondary',
+                        },
+                      }}
+                      helperText="Это поле не является стандартным для данного типа"
+                    />
+                    <IconButton
+                      onClick={() => {
+                        const updatedSources = [...sources];
+                        delete updatedSources[index].fields[field];
+                        setSources(updatedSources);
+                      }}
+                      sx={{ ml: 1 }}
+                    >
+                      <ClearIcon />
+                    </IconButton>
+                  </Box>
+                ))}
+              </Box>
+            );
+          })}
+        </Box>
+      )}
+      <Box display="flex" justifyContent="space-between" mt={2} sx={{ width: '100%' }}>
+        <Button variant="outlined" onClick={() => navigateSource('prev')} disabled={currentSourceIndex === 0} sx={{ width: '48%' }}>Предыдущий</Button>
+        <Button variant="outlined" onClick={() => navigateSource('next')} disabled={currentSourceIndex === sources.length - 1} sx={{ width: '48%' }}>Следующий</Button>
       </Box>
-      <Button
-        fullWidth
-        variant="contained"
-        onClick={() => setErrorModalOpen(false)}
-        sx={{ backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' }, width: '100%' }}
-      >
-        Закрыть
-      </Button>
+      <Button fullWidth variant="contained" onClick={addSource} sx={{ mt: 2, width: '100%' }}>Добавить источник</Button>
+      <Button fullWidth variant="outlined" onClick={handleSaveEditedFile} sx={{ mt: 2, width: '100%' }}>Сохранить</Button>
     </Paper>
   </Fade>
 </Modal>
+
+        <Modal
+          open={errorModalOpen}
+          onClose={() => setErrorModalOpen(false)}
+          closeAfterTransition
+          slots={{ backdrop: Backdrop }}
+          slotProps={{
+            backdrop: {
+              timeout: 500,
+              sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
+            },
+          }}
+        >
+          <Fade in={errorModalOpen}>
+            <Paper
+              sx={{
+                width: { xs: '80%', sm: '80%', md: '80%' },
+                p: 3,
+                mx: "auto",
+                mt: 5,
+                borderRadius: '15px',
+                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+                background: 'background.paper',
+                height: 'auto',
+                maxHeight: '80vh',
+                display: 'flex',
+                flexDirection: 'column',
+                zIndex: 1300,
+              }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
+                Просмотр ошибок
+              </Typography>
+              <Box sx={{ flex: 1, overflowY: 'auto', mb: 2, width: '100%' }}>
+                {Object.entries(editedLines).length > 0 ? (
+                  <>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main' }}>
+                      Обнаруженные ошибки:
+                    </Typography>
+                    {Object.entries(editedLines).map(([lineNumber, error], index) => (
+                      <Typography
+                        key={index}
+                        sx={{
+                          mb: 1,
+                          color: 'error.main',
+                        }}
+                      >
+                        {error}
+                      </Typography>
+                    ))}
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 2, mb: 1, color: 'text.primary' }}>
+                      Содержимое файла:
+                    </Typography>
+                  </>
+                ) : (
+                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'text.secondary' }}>
+                    Ошибок не обнаружено
+                  </Typography>
+                )}
+                {editContent.split('\n').reduce((acc, line, index) => {
+                  if (line.trim().startsWith('@')) {
+                    acc.push({ startIndex: index, lines: [line], hasError: false });
+                  } else if (acc.length > 0) {
+                    acc[acc.length - 1].lines.push(line);
+                  }
+                  return acc;
+                }, []).map((entry, entryIndex) => {
+                  const errorLineNumber = Object.keys(editedLines).find(lineNum =>
+                    parseInt(lineNum) >= entry.startIndex && parseInt(lineNum) < (entry.startIndex + entry.lines.length)
+                  );
+                  const hasError = !!errorLineNumber;
+                  return entry.lines.map((line, lineIndex) => (
+                    <Typography
+                      key={`${entryIndex}-${lineIndex}`}
+                      sx={{
+                        mb: 1,
+                        textDecoration: hasError ? 'underline red' : 'none',
+                        color: hasError ? 'error.main' : 'text.primary',
+                      }}
+                    >
+                      {line}
+                    </Typography>
+                  ));
+                })}
+              </Box>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={() => setErrorModalOpen(false)}
+                sx={{ backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' }, width: '100%' }}
+              >
+                Закрыть
+              </Button>
+            </Paper>
+          </Fade>
+        </Modal>
       </Container>
     </>
   );

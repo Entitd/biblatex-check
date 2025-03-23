@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timedelta
 import logging
+import urllib.parse
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -114,20 +115,21 @@ async def get_user_files(user_id: int, db: Session = Depends(get_db)):
     } for file in user_files]
 
 @app.get("/download/{file_path:path}")
-async def download_file(file_path: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    full_path = Path(file_path)
+async def download_file(file_path: str):
+    full_path = Path(file_path)  # Предполагается, что file_path — это путь к файлу
     if not full_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    exam = db.query(Examination).filter(
-        (Examination.download_link_source == str(full_path)) | (Examination.download_link_edited == str(full_path)),
-        Examination.id_user == current_user.id_user
-    ).first()
-    if not exam:
-        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Кодируем имя файла для заголовка Content-Disposition
+    encoded_filename = urllib.parse.quote(full_path.name)
+    headers = {
+        "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+    }
+
     return FileResponse(
         full_path,
-        filename=full_path.name,
-        headers={"Content-Disposition": f"attachment; filename={full_path.name}"}
+        headers=headers,
+        media_type="application/octet-stream"
     )
 
 @app.get("/api/get-bib-content")

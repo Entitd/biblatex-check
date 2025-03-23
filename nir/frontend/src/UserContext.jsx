@@ -1,71 +1,59 @@
-import React, { createContext, useState, useEffect } from 'react';
+// UserContext.jsx
+import { createContext, useState, useEffect } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+
+export const UserContext = createContext();
 
 const authAxios = axios.create({
   baseURL: 'http://localhost:8000',
   withCredentials: true,
 });
 
-export const UserContext = createContext();
-
 export const UserProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const checkUser = async () => {
-      try {
-        const response = await authAxios.get('/api/profile');
-        setUser(response.data);
-      } catch (error) {
-        console.error("Failed to fetch user:", error.response?.data || error.message);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    checkUser();
-  }, []);
-
-  const login = async (username, password) => {
-    try {
-      const response = await authAxios.post('/api/login', { username, password });
-      const profileResponse = await authAxios.get('/api/profile');
-      setUser(profileResponse.data);
-      navigate('/personalaccount');
-      return response.data;
-    } catch (error) {
-      console.error("Login failed:", error.response?.data || error.message);
-      throw error;
-    }
-  };
-
-  const logout = async () => {
-    try {
-      await authAxios.post('/api/logout');
-      setUser(null);
-      navigate('/login');
-    } catch (error) {
-      console.error("Logout failed:", error.response?.data || error.message);
-    }
-  };
 
   const refreshToken = async () => {
     try {
-      await authAxios.post('/api/refresh-token');
-      const profileResponse = await authAxios.get('/api/profile');
-      setUser(profileResponse.data);
+      const response = await authAxios.post('/api/refresh-token');
+      setUser(response.data.user);
+      return true;
     } catch (error) {
-      console.error("Token refresh failed:", error.response?.data || error.message);
+      console.error("Error refreshing token:", error.response?.data || error.message);
       setUser(null);
-      navigate('/login');
+      return false;
     }
   };
 
+  const fetchProfile = async () => {
+    try {
+      const response = await authAxios.get('/api/profile');
+      setUser(response.data);
+    } catch (error) {
+      if (error.response?.status === 401) {
+        const refreshed = await refreshToken();
+        if (refreshed) {
+          fetchProfile(); // Повторяем запрос после успешного обновления токена
+        } else {
+          setUser(null);
+        }
+      } else {
+        console.error("Error fetching profile:", error.response?.data || error.message);
+        setUser(null);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const logout = () => {
+    setUser(null);
+    authAxios.post('/api/logout');
+  };
+
   return (
-    <UserContext.Provider value={{ user, login, logout, refreshToken, loading }}>
+    <UserContext.Provider value={{ user, refreshToken, logout }}>
       {children}
     </UserContext.Provider>
   );
