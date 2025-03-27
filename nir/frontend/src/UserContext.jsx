@@ -9,8 +9,21 @@ const authAxios = axios.create({
   withCredentials: true,
 });
 
+
+
+
 export const UserProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+
+  const login = async (username, password) => {
+    try {
+      const response = await authAxios.post('/api/login', { username, password });
+      setUser(response.data.user);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  };
 
   const refreshToken = async () => {
     try {
@@ -53,7 +66,7 @@ export const UserProvider = ({ children }) => {
   };
 
   return (
-    <UserContext.Provider value={{ user, refreshToken, logout }}>
+    <UserContext.Provider value={{ user, login, refreshToken, logout }}>
       {children}
     </UserContext.Provider>
   );
