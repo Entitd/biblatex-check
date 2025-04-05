@@ -55,6 +55,11 @@ app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(files.router)
 
+
+
+
+
+app.mount("/", StaticFiles(directory="../frontend/dist", html=True), name="static")
 # Монтирование статических файлов
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
