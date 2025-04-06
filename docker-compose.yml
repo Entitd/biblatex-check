@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"  # Для локального тестирования
+    volumes:
+      - ./backend/bibtexcheck.db:/app/bibtexcheck.db  # Персистентность SQLite
+      - ./backend/uploads:/app/uploads  # Для хранения файлов
+    environment:
+      - SECRET_KEY=${SECRET_KEY}  # Укажите в переменных окружения
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"  # Основной порт для доступа
+    volumes:
+      - ./backend/uploads:/app/uploads  # Доступ к файлам uploads через Nginx
+    depends_on:
+      - backend
+    restart: unless-stopped
