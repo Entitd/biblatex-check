@@ -5,13 +5,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"  # Для локального тестирования
+    expose:
+      - "8000"
     volumes:
-      - ./backend/bibtexcheck.db:/app/bibtexcheck.db  # Персистентность SQLite
-      - ./backend/uploads:/app/uploads  # Для хранения файлов
-    environment:
-      - SECRET_KEY=${SECRET_KEY}  # Укажите в переменных окружения
+      - ./backend/bibtexcheck.db:/app/bibtexcheck.db
+      - ./backend/uploads:/app/uploads
     restart: unless-stopped
 
   frontend:
@@ -19,9 +17,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "80:80"  # Основной порт для доступа
+      - "80:80"
     volumes:
-      - ./backend/uploads:/app/uploads  # Доступ к файлам uploads через Nginx
+      - ./backend/uploads:/app/uploads
     depends_on:
       - backend
     restart: unless-stopped

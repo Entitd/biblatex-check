@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect } from "react";
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
-import { lightTheme, darkTheme } from './themes'; // Импортируем ваши темы
+import { lightTheme, darkTheme } from './Themes'; // Импортируем ваши темы
 
 export const ThemeContext = createContext();
 
