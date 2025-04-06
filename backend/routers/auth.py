@@ -6,7 +6,7 @@ from models.models import User
 from hashing import hash_password, verify_password
 from database import get_db
 from datetime import datetime, timedelta
-from jwt import encode, decode, PyJWTError
+from pyjwt import encode, decode, PyJWTError
 import os
 from dotenv import load_dotenv
 import logging
