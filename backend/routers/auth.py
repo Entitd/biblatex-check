@@ -6,7 +6,7 @@ from models.models import User
 from hashing import hash_password, verify_password
 from database import get_db
 from datetime import datetime, timedelta
-from pyjwt import encode, decode, PyJWTError
+from jwt import encode, decode, PyJWTError
 import os
 from dotenv import load_dotenv
 import logging
@@ -28,15 +28,16 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
-    encoded_jwt = encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)  # ← jwt.encode
     return encoded_jwt
 
 def create_refresh_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(days=7))
     to_encode.update({"exp": expire})
-    encoded_jwt = encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)  # ← jwt.encode
     return encoded_jwt
+
 
 # Извлечение access_token из cookie
 def get_current_user(request: Request, db: Session = Depends(get_db), optional: bool = False):
@@ -91,11 +92,11 @@ def refresh_token(request: Request, response: Response, db: Session = Depends(ge
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Refresh token отсутствует")
     try:
-        payload = decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])  # ← jwt.decode
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Недействительный refresh token")
-    except JWTError:
+    except PyJWTError:  # ← Обработка ошибок JWT
         raise HTTPException(status_code=401, detail="Недействительный refresh token")
     access_token_expires = timedelta(minutes=30)
     new_access_token = create_access_token(data={"sub": user_id}, expires_delta=access_token_expires)

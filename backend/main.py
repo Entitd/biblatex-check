@@ -27,7 +27,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Настройка базы данных
-SQLALCHEMY_DATABASE_URL = "sqlite:///./bibtexcheck.db"  # Замени на свою БД, если нужно
+SQLALCHEMY_DATABASE_URL = "postgresql://user:password@db:5432/bibtexcheck"  # Замени на свою БД, если нужно
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -59,7 +59,7 @@ app.include_router(files.router)
 
 
 
-app.mount("/", StaticFiles(directory="../frontend/dist", html=True), name="static")
+app.mount("/", StaticFiles(directory="/app/frontend_dist", html=True), name="static")
 # Монтирование статических файлов
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
