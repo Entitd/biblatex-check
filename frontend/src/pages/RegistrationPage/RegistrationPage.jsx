@@ -66,7 +66,7 @@ const RegistrationPage = () => {
         setError("");
         try {
             console.log("Sending registration request:", { username, password });
-            const registerResponse = await axios.post("http://localhost:8000/api/register", {
+            const registerResponse = await axios.post("/api/register", {
                 username,
                 password
             }, { withCredentials: true });

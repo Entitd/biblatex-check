@@ -27,7 +27,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Настройка базы данных
-SQLALCHEMY_DATABASE_URL = "postgresql://user:password@db:5432/bibtexcheck"  # Замени на свою БД, если нужно
+SQLALCHEMY_DATABASE_URL = "postgresql://postgres:qwerty@db:5432/postgres"  # Замени на свою БД, если нужно
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -53,10 +53,6 @@ app.add_middleware(
 # Подключение маршрутов
 app.include_router(users.router)
 app.include_router(auth.router)
-app.include_router(files.router)
-
-
-
 
 
 app.mount("/", StaticFiles(directory="/app/frontend_dist", html=True), name="static")

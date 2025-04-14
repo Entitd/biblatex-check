@@ -5,12 +5,9 @@ import axios from 'axios';
 export const UserContext = createContext();
 
 const authAxios = axios.create({
-  baseURL: 'http://localhost:8000',
+  // Убираем baseURL, чтобы использовать относительные пути
   withCredentials: true,
 });
-
-
-
 
 export const UserProvider = ({ children }) => {
   const [user, setUser] = useState(null);
