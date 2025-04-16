@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from pathlib import Path
 from fastapi.responses import JSONResponse, FileResponse
 from dotenv import load_dotenv
-from models.models import User, Examination
+from models.models import User, Examination, Base
 from database import get_db
 from routers import users, auth, files
 from bibtex_validator import validate_bibtex_file
@@ -29,6 +29,9 @@ logger = logging.getLogger(__name__)
 # Настройка базы данных
 SQLALCHEMY_DATABASE_URL = "postgresql://postgres:qwerty@db:5432/postgres"  # Замени на свою БД, если нужно
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
+
+Base.metadata.create_all(bind=engine)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Инициализация FastAPI и планировщика
@@ -41,6 +44,8 @@ origins = [
     "http://26.38.58.120:5173",
     "http://10.0.85.2:5173",
     "http://192.168.0.108:5173",
+    "http://localhost:80", 
+    "http://frontend:80",
 ]
 app.add_middleware(
     CORSMiddleware,
@@ -53,7 +58,7 @@ app.add_middleware(
 # Подключение маршрутов
 app.include_router(users.router)
 app.include_router(auth.router)
-
+app.include_router(files.router)
 
 app.mount("/", StaticFiles(directory="/app/frontend_dist", html=True), name="static")
 # Монтирование статических файлов

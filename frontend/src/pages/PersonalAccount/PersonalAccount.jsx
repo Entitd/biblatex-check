@@ -237,7 +237,6 @@ const PersonalAccount = () => {
   };
 
   const saveBibFiles = async () => {
-    console.log("Saving bib files, isGuest:", isGuest, "Payload:", { sessionId, files: formattedSources });
     const formattedSources = sources.map((source, index) => ({
       ...source.fields,
       ID: `source${index + 1}`,
@@ -245,11 +244,9 @@ const PersonalAccount = () => {
     }));
     try {
       if (isGuest) {
-        console.log("Sending to /api/guest/save-bib with payload:", { sessionId, files: formattedSources });
-        await guestAxios.post("/api/guest/save-bib", { sessionId, files: formattedSources });
+        await guestAxios.post('/api/guest/save-bib', { sessionId, files: formattedSources });
       } else {
-        console.log("Sending to /api/save-bib with payload:", { files: formattedSources });
-        await authAxios.post("/api/save-bib", { files: formattedSources });
+        await authAxios.post('/api/save-bib', { files: formattedSources });
       }
       setModalOpen(false);
       setSources([]);
@@ -257,7 +254,6 @@ const PersonalAccount = () => {
       setHasSource(false);
       fetchFiles(); // Теперь fetchFiles доступна
     } catch (error) {
-      console.error("Error in saveBibFiles:", error.response?.data || error.message);
       if (error.response?.status === 401 && !isGuest) {
         await refreshToken();
         saveBibFiles();
@@ -358,7 +354,6 @@ const PersonalAccount = () => {
   };
 
   const handleSaveEditedFile = async () => {
-    console.log("Saving edited file, isGuest:", isGuest, "Payload:", { sessionId, file_id: editFileId, content });
     const formattedSources = sources.map((source, index) => ({
       ...source.fields,
       ID: `source${index + 1}`,

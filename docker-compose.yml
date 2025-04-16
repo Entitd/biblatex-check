@@ -32,6 +32,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "80:80"
+    environment:
+    - NODE_ENV=production
     # volumes:
     #   - ./backend/uploads:/app/uploads
     depends_on:
