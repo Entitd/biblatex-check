@@ -651,160 +651,275 @@ const PersonalAccount = () => {
           <input id="upload-bib-file" type="file" style={{ display: 'none' }} onChange={uploadBibFiles} />
         </Box>
 
-        <Paper sx={{ 
-  borderRadius: '15px', 
-  boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)', 
-  overflow: 'hidden', 
-  background: 'background.paper', 
-  height: 'calc(100vh - 200px)', 
-  width: '100%', 
-  marginBottom: '20px', 
-  display: 'flex', 
-  flexDirection: 'column'
-}}>
-  {/* Версия для средних и больших экранов */}
-  {!isMobile ? (
-    <>
-      <Box sx={{ 
-        flex: 1, 
-        overflowX: 'auto', 
-        width: '100%',
-        '&::-webkit-scrollbar': {
-          height: '6px'
-        },
-        '&::-webkit-scrollbar-thumb': {
-          backgroundColor: isDarkMode ? '#555' : '#ccc',
-          borderRadius: '3px'
-        }
-      }}>
-        <Table stickyHeader sx={{ 
-          minWidth: '100%',
-          tableLayout: 'auto' // Автоматическое распределение ширины
+        <Paper sx={{
+          borderRadius: '15px',
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
+          overflow: 'hidden',
+          background: 'background.paper',
+          height: 'calc(100vh - 200px)',
+          width: '100%',
+          marginBottom: '20px',
+          display: 'flex',
+          flexDirection: 'column'
         }}>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ 
-                fontWeight: 'bold', 
-                backgroundColor: 'grey.100', 
-                py: 2, 
-                minWidth: '220px',
-                width: '25%'
+          {/* Версия для средних и больших экранов */}
+          {!isMobile ? (
+            <>
+              <Box sx={{
+                flex: 1,
+                overflowX: 'auto',
+                width: '100%',
+                '&::-webkit-scrollbar': {
+                  height: '6px'
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: isDarkMode ? '#555' : '#ccc',
+                  borderRadius: '3px'
+                }
               }}>
-                Название файла
-              </TableCell>
-              <TableCell sx={{ 
-                fontWeight: 'bold', 
-                backgroundColor: 'grey.100', 
-                py: 2, 
-                minWidth: '120px',
-                width: '15%'
-              }}>
-                Дата загрузки
-              </TableCell>
-              <TableCell align="center" sx={{ 
-                fontWeight: 'bold', 
-                backgroundColor: 'grey.100', 
-                py: 2, 
-                minWidth: '80px',
-                width: '10%'
-              }}>
-                Ошибки
-              </TableCell>
-              <TableCell align="center" sx={{ 
-                fontWeight: 'bold', 
-                backgroundColor: 'grey.100', 
-                py: 2, 
-                minWidth: '120px',
-                width: '15%'
-              }}>
-                Соответствие
-              </TableCell>
-              <TableCell align="center" sx={{ 
-                fontWeight: 'bold', 
-                backgroundColor: 'grey.100', 
-                py: 2,
-                minWidth: '200px',
-                width: '20%'
-              }}>
-                Действия
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredFiles.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((file, index) => (
-              <TableRow
-                key={file.id}
-                sx={{
-                  backgroundColor: index % 2 === 0 ? 'background.paper' : 'grey.50',
-                  '&:hover': { backgroundColor: 'grey.200' },
-                }}
-              >
-                <TableCell sx={{ 
-                  py: 1.5,
-                  maxWidth: '220px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
+                <Table stickyHeader sx={{
+                  minWidth: '100%',
+                  tableLayout: 'auto' // Автоматическое распределение ширины
                 }}>
-                  <Tooltip title={file.name_file} arrow>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Typography noWrap sx={{ fontWeight: 500 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{
+                        fontWeight: 'bold',
+                        backgroundColor: 'grey.100',
+                        py: 2,
+                        minWidth: '220px',
+                        width: '25%'
+                      }}>
+                        Название файла
+                      </TableCell>
+                      <TableCell sx={{
+                        fontWeight: 'bold',
+                        backgroundColor: 'grey.100',
+                        py: 2,
+                        minWidth: '120px',
+                        width: '15%'
+                      }}>
+                        Дата загрузки
+                      </TableCell>
+                      <TableCell align="center" sx={{
+                        fontWeight: 'bold',
+                        backgroundColor: 'grey.100',
+                        py: 2,
+                        minWidth: '80px',
+                        width: '10%'
+                      }}>
+                        Ошибки
+                      </TableCell>
+                      <TableCell align="center" sx={{
+                        fontWeight: 'bold',
+                        backgroundColor: 'grey.100',
+                        py: 2,
+                        minWidth: '120px',
+                        width: '15%'
+                      }}>
+                        Соответствие
+                      </TableCell>
+                      <TableCell align="center" sx={{
+                        fontWeight: 'bold',
+                        backgroundColor: 'grey.100',
+                        py: 2,
+                        minWidth: '200px',
+                        width: '20%'
+                      }}>
+                        Действия
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredFiles.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((file, index) => (
+                      <TableRow
+                        key={file.id}
+                        sx={{
+                          backgroundColor: index % 2 === 0 ? 'background.paper' : 'grey.50',
+                          '&:hover': { backgroundColor: 'grey.200' },
+                        }}
+                      >
+                        <TableCell sx={{
+                          py: 1.5,
+                          maxWidth: '220px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          <Tooltip title={file.name_file} arrow>
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <Typography noWrap sx={{ fontWeight: 500 }}>
+                                {file.name_file}
+                              </Typography>
+                            </Box>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">
+                            {formatDate(file.loading_at)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Chip
+                            label={file.number_of_errors}
+                            size="small"
+                            color={file.number_of_errors > 0 ? "error" : "success"}
+                            sx={{ fontWeight: 500 }}
+                          />
+                        </TableCell>
+                        <TableCell align="center">
+                          <Typography variant="body2">
+                            {file.course_compliance}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Box sx={{
+                            display: 'flex',
+                            gap: 1,
+                            justifyContent: 'center',
+                            flexWrap: 'wrap'
+                          }}>
+                            <Button
+                              variant="contained"
+                              size="small"
+                              onClick={() => downloadFile(file.download_link_source, `${file.name_file}_source.bib`)}
+                              startIcon={<DownloadIcon />}
+                              sx={{
+                                backgroundColor: 'secondary.main',
+                                '&:hover': { backgroundColor: 'secondary.dark' }
+                              }}
+                            >
+                              Исходный
+                            </Button>
+                            {file.download_link_edited && (
+                              <Button
+                                variant="contained"
+                                size="small"
+                                onClick={() => downloadFile(file.download_link_edited, `${file.name_file}_edited.bib`)}
+                                startIcon={<DownloadIcon />}
+                                sx={{
+                                  backgroundColor: 'secondary.main',
+                                  '&:hover': { backgroundColor: 'secondary.dark' }
+                                }}
+                              >
+                                Исправленный
+                              </Button>
+                            )}
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              onClick={() => handleShowErrors(file)}
+                              startIcon={<ErrorIcon />}
+                              sx={{
+                                borderColor: file.number_of_errors > 0 ? 'error.main' : 'primary.main',
+                                color: file.number_of_errors > 0 ? 'error.main' : 'primary.main',
+                              }}
+                            >
+                              Ошибки
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              onClick={() => handleEditFile(file)}
+                              startIcon={<EditIcon />}
+                              sx={{
+                                borderColor: 'primary.main',
+                                color: 'primary.main'
+                              }}
+                            >
+                              Редактировать
+                            </Button>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+              <TablePagination
+                rowsPerPageOptions={[5, 10, 25]}
+                component="div"
+                count={filteredFiles.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+              />
+            </>
+          ) : (
+            /* Мобильная версия (карточки) */
+            <Box sx={{
+              flex: 1,
+              overflowY: 'auto',
+              p: 1
+            }}>
+              {filteredFiles.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((file, index) => (
+                <Card key={file.id} sx={{
+                  mb: 2,
+                  p: 2,
+                  backgroundColor: index % 2 === 0 ? 'background.paper' : 'grey.50'
+                }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                      <Typography variant="subtitle1" noWrap sx={{ fontWeight: 'bold' }}>
                         {file.name_file}
                       </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {formatDate(file.loading_at)}
+                      </Typography>
                     </Box>
-                  </Tooltip>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">
-                    {formatDate(file.loading_at)}
-                  </Typography>
-                </TableCell>
-                <TableCell align="center">
-                  <Chip 
-                    label={file.number_of_errors} 
-                    size="small"
-                    color={file.number_of_errors > 0 ? "error" : "success"}
-                    sx={{ fontWeight: 500 }}
-                  />
-                </TableCell>
-                <TableCell align="center">
-                  <Typography variant="body2">
-                    {file.course_compliance}
-                  </Typography>
-                </TableCell>
-                <TableCell align="center">
-                  <Box sx={{ 
-                    display: 'flex', 
+                    <Chip
+                      label={file.number_of_errors}
+                      size="small"
+                      color={file.number_of_errors > 0 ? "error" : "success"}
+                      sx={{ ml: 1 }}
+                    />
+                  </Box>
+
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="body2">
+                      <Box component="span" sx={{ fontWeight: 500 }}>Соответствие:</Box> {file.course_compliance}
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{
+                    display: 'flex',
                     gap: 1,
-                    justifyContent: 'center',
-                    flexWrap: 'wrap'
+                    mb: 1
                   }}>
                     <Button
+                      fullWidth
                       variant="contained"
                       size="small"
                       onClick={() => downloadFile(file.download_link_source, `${file.name_file}_source.bib`)}
                       startIcon={<DownloadIcon />}
-                      sx={{ 
-                        backgroundColor: 'secondary.main', 
+                      sx={{
+                        backgroundColor: 'secondary.main',
                         '&:hover': { backgroundColor: 'secondary.dark' }
                       }}
                     >
                       Исходный
                     </Button>
+
                     {file.download_link_edited && (
                       <Button
+                        fullWidth
                         variant="contained"
                         size="small"
                         onClick={() => downloadFile(file.download_link_edited, `${file.name_file}_edited.bib`)}
                         startIcon={<DownloadIcon />}
-                        sx={{ 
-                          backgroundColor: 'secondary.main', 
+                        sx={{
+                          backgroundColor: 'secondary.main',
                           '&:hover': { backgroundColor: 'secondary.dark' }
                         }}
                       >
                         Исправленный
                       </Button>
                     )}
+                  </Box>
+
+                  <Box sx={{ display: 'flex', gap: 1 }}>
                     <Button
+                      fullWidth
                       variant="outlined"
                       size="small"
                       onClick={() => handleShowErrors(file)}
@@ -817,154 +932,39 @@ const PersonalAccount = () => {
                       Ошибки
                     </Button>
                     <Button
+                      fullWidth
                       variant="outlined"
                       size="small"
                       onClick={() => handleEditFile(file)}
                       startIcon={<EditIcon />}
-                      sx={{ 
-                        borderColor: 'primary.main', 
+                      sx={{
+                        borderColor: 'primary.main',
                         color: 'primary.main'
                       }}
                     >
                       Редактировать
                     </Button>
                   </Box>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Box>
-      <TablePagination
-        rowsPerPageOptions={[5, 10, 25]}
-        component="div"
-        count={filteredFiles.length}
-        rowsPerPage={rowsPerPage}
-        page={page}
-        onPageChange={handleChangePage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-      />
-    </>
-  ) : (
-    /* Мобильная версия (карточки) */
-    <Box sx={{ 
-      flex: 1, 
-      overflowY: 'auto',
-      p: 1
-    }}>
-      {filteredFiles.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((file, index) => (
-        <Card key={file.id} sx={{ 
-          mb: 2, 
-          p: 2,
-          backgroundColor: index % 2 === 0 ? 'background.paper' : 'grey.50'
-        }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-            <Box sx={{ flex: 1, overflow: 'hidden' }}>
-              <Typography variant="subtitle1" noWrap sx={{ fontWeight: 'bold' }}>
-                {file.name_file}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {formatDate(file.loading_at)}
-              </Typography>
-            </Box>
-            <Chip 
-              label={file.number_of_errors} 
-              size="small"
-              color={file.number_of_errors > 0 ? "error" : "success"}
-              sx={{ ml: 1 }}
-            />
-          </Box>
+                </Card>
+              ))}
 
-          <Box sx={{ mb: 1 }}>
-            <Typography variant="body2">
-              <Box component="span" sx={{ fontWeight: 500 }}>Соответствие:</Box> {file.course_compliance}
-            </Typography>
-          </Box>
-
-          <Box sx={{ 
-            display: 'flex', 
-            gap: 1,
-            mb: 1
-          }}>
-            <Button
-              fullWidth
-              variant="contained"
-              size="small"
-              onClick={() => downloadFile(file.download_link_source, `${file.name_file}_source.bib`)}
-              startIcon={<DownloadIcon />}
-              sx={{ 
-                backgroundColor: 'secondary.main', 
-                '&:hover': { backgroundColor: 'secondary.dark' }
-              }}
-            >
-              Исходный
-            </Button>
-            
-            {file.download_link_edited && (
-              <Button
-                fullWidth
-                variant="contained"
-                size="small"
-                onClick={() => downloadFile(file.download_link_edited, `${file.name_file}_edited.bib`)}
-                startIcon={<DownloadIcon />}
-                sx={{ 
-                  backgroundColor: 'secondary.main', 
-                  '&:hover': { backgroundColor: 'secondary.dark' }
+              <TablePagination
+                rowsPerPageOptions={[5, 10, 25]}
+                component="div"
+                count={filteredFiles.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+                sx={{
+                  '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                    fontSize: '0.8rem'
+                  }
                 }}
-              >
-                Исправленный
-              </Button>
-            )}
-          </Box>
-
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button
-              fullWidth
-              variant="outlined"
-              size="small"
-              onClick={() => handleShowErrors(file)}
-              startIcon={<ErrorIcon />}
-              sx={{
-                borderColor: file.number_of_errors > 0 ? 'error.main' : 'primary.main',
-                color: file.number_of_errors > 0 ? 'error.main' : 'primary.main',
-              }}
-            >
-              Ошибки
-            </Button>
-            <Button
-              fullWidth
-              variant="outlined"
-              size="small"
-              onClick={() => handleEditFile(file)}
-              startIcon={<EditIcon />}
-              sx={{ 
-                borderColor: 'primary.main', 
-                color: 'primary.main'
-              }}
-            >
-              Редактировать
-            </Button>
-          </Box>
-        </Card>
-      ))}
-      
-      <TablePagination
-        rowsPerPageOptions={[5, 10, 25]}
-        component="div"
-        count={filteredFiles.length}
-        rowsPerPage={rowsPerPage}
-        page={page}
-        onPageChange={handleChangePage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-        sx={{
-          '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-            fontSize: '0.8rem'
-          }
-        }}
-      />
-    </Box>
-  )}
-</Paper>
+              />
+            </Box>
+          )}
+        </Paper>
 
         <Modal
           open={modalOpen}
@@ -986,7 +986,7 @@ const PersonalAccount = () => {
               mt: 5,
               borderRadius: '15px',
               boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-              background: 'background.paper',
+              background: 'background.paper',   
               maxHeight: '80vh',
               overflowY: 'auto',
               zIndex: 1300,
