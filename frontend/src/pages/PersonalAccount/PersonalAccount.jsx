@@ -144,6 +144,97 @@ const PersonalAccount = () => {
     return { standard, required, optional };
   };
 
+
+
+  const DownloadMenu = ({ file }) => {
+    const [anchorEl, setAnchorEl] = useState(null);
+    const open = Boolean(anchorEl);
+    const { isGuest } = useContext(UserContext);
+    const [sessionId] = useState(() => sessionStorage.getItem('guestSessionId'));
+    const { refreshToken } = useContext(UserContext);
+  
+    const handleClick = (event) => {
+      setAnchorEl(event.currentTarget);
+    };
+  
+    const handleClose = () => {
+      setAnchorEl(null);
+    };
+  
+    const downloadFile = async (fileUrl, fileName) => {
+      if (!fileUrl) return;
+      try {
+        const response = await (isGuest ? guestAxios : authAxios).get(
+          `/download/${fileUrl}${isGuest ? `?sessionId=${sessionId}` : ''}`,
+          { responseType: 'blob' }
+        );
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        if (error.response?.status === 401 && !isGuest) {
+          await refreshToken();
+          downloadFile(fileUrl, fileName);
+        } else {
+          console.error("Error downloading file:", error.response?.data || error.message);
+        }
+      }
+      handleClose();
+    };
+  
+    return (
+      <>
+        <Tooltip title="Скачать файл">
+          <IconButton
+            onClick={handleClick}
+            color="primary"
+            sx={{
+              '&:hover': {
+                backgroundColor: 'primary.light',
+              },
+            }}
+          >
+            <DownloadIcon />
+          </IconButton>
+        </Tooltip>
+        <Menu
+          anchorEl={anchorEl}
+          open={open}
+          onClose={handleClose}
+          PaperProps={{
+            elevation: 3,
+            sx: {
+              borderRadius: '10px',
+              mt: 1,
+            }
+          }}
+        >
+          <MenuItem 
+            onClick={() => downloadFile(file.download_link_source, `${file.name_file}_source.bib`)}
+            sx={{ minWidth: '180px' }}
+          >
+            Исходный файл
+          </MenuItem>
+          {file.download_link_edited && (
+            <MenuItem 
+              onClick={() => downloadFile(file.download_link_edited, `${file.name_file}_edited.bib`)}
+              sx={{ minWidth: '180px' }}
+            >
+              Исправленный файл
+            </MenuItem>
+          )}
+        </Menu>
+      </>
+    );
+  };
+
+
+  
   const parseBibFile = (content) => {
     const lines = content ? content.split('\n') : [];
     const sources = [];
@@ -871,39 +962,12 @@ const PersonalAccount = () => {
                             {file.course_compliance}
                           </Typography>
                         </TableCell>
+
                         <TableCell align="center">
-                          <Box sx={{
-                            display: 'flex',
-                            gap: 1,
-                            justifyContent: 'center',
-                            flexWrap: 'wrap'
-                          }}>
-                            <Button
-                              variant="contained"
-                              size="small"
-                              onClick={() => downloadFile(file.download_link_source, `${file.name_file}_source.bib`)}
-                              startIcon={<DownloadIcon />}
-                              sx={{
-                                backgroundColor: 'secondary.main',
-                                '&:hover': { backgroundColor: 'secondary.dark' }
-                              }}
-                            >
-                              Исходный
-                            </Button>
-                            {file.download_link_edited && (
-                              <Button
-                                variant="contained"
-                                size="small"
-                                onClick={() => downloadFile(file.download_link_edited, `${file.name_file}_edited.bib`)}
-                                startIcon={<DownloadIcon />}
-                                sx={{
-                                  backgroundColor: 'secondary.main',
-                                  '&:hover': { backgroundColor: 'secondary.dark' }
-                                }}
-                              >
-                                Исправленный
-                              </Button>
-                            )}
+  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+
+
+                       
                             <Button
                               variant="outlined"
                               size="small"
@@ -928,6 +992,7 @@ const PersonalAccount = () => {
                             >
                               Редактировать
                             </Button>
+                            <DownloadMenu file={file} />
                           </Box>
                         </TableCell>
                       </TableRow>
@@ -981,40 +1046,10 @@ const PersonalAccount = () => {
                     </Typography>
                   </Box>
 
-                  <Box sx={{
-                    display: 'flex',
-                    gap: 1,
-                    mb: 1
-                  }}>
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      size="small"
-                      onClick={() => downloadFile(file.download_link_source, `${file.name_file}_source.bib`)}
-                      startIcon={<DownloadIcon />}
-                      sx={{
-                        backgroundColor: 'secondary.main',
-                        '&:hover': { backgroundColor: 'secondary.dark' }
-                      }}
-                    >
-                      Исходный
-                    </Button>
-
-                    {file.download_link_edited && (
-                      <Button
-                        fullWidth
-                        variant="contained"
-                        size="small"
-                        onClick={() => downloadFile(file.download_link_edited, `${file.name_file}_edited.bib`)}
-                        startIcon={<DownloadIcon />}
-                        sx={{
-                          backgroundColor: 'secondary.main',
-                          '&:hover': { backgroundColor: 'secondary.dark' }
-                        }}
-                      >
-                        Исправленный
-                      </Button>
-                    )}
+                  <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                  <DownloadMenu file={file} />
+              
+                    
                   </Box>
 
                   <Box sx={{ display: 'flex', gap: 1 }}>
