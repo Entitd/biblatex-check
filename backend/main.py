@@ -40,19 +40,20 @@ scheduler = AsyncIOScheduler()
 
 # CORS
 origins = [
-    "http://localhost:5173",
-    "http://26.38.58.120:5173",
-    "http://10.0.85.2:5173",
-    "http://192.168.0.108:5173",
-    "http://localhost:80", 
-    "http://frontend:80",
+    "http://bibcheck.ru","http://bibcheck.ru:8000","http://bibcheck.ru:8080","http://bibcheck.ru:80",
+    "https://bibcheck.ru",
+    "http://localhost",
+    "http://localhost:8080",
+    "http://www.bibcheck.ru",
+    "https://www.bibcheck.ru",
 ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Временно разрешите все домены
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # OPTIONS, POST, GET и др.
-    allow_headers=["*"],  # Все заголовки
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Подключение маршрутов

@@ -11,6 +11,7 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+#Словарь полей записи
 requiredEntryFields = {
     "article": ["author", "title", "journal", "year", "volume", "number", "pages"],
     "book": ["author", "title", "year", "address", "publisher", "pages"],
@@ -47,6 +48,7 @@ requiredEntryFields = {
     "school": "mastersthesis",
 }
 
+#Возвращает список обязательных полей для переданного типа
 def get_required_fields(entry_type):
     if entry_type in requiredEntryFields:
         fields = requiredEntryFields[entry_type]
@@ -55,13 +57,15 @@ def get_required_fields(entry_type):
         return fields
     return []
 
+#Проверка англоязычная литература или русскоязычная
 def detect_language(text):
     for char in text:
         if 'а' <= char <= 'я' or 'А' <= char <= 'Я':
             return 'russian'
     return 'english'
 
-def get_square_color(total_count, foreign_language_count, articles_after_2010_count, literature_21_century_count):
+#Выдает соответствие курсу
+def get_course(total_count, foreign_language_count, articles_after_2010_count, literature_21_century_count):
     if total_count > 30 and foreign_language_count > 6 and articles_after_2010_count > 6 and literature_21_century_count > 20:
         return '5'
     if total_count >= 25 and foreign_language_count > 5 and articles_after_2010_count > 6 and literature_21_century_count > 20:
@@ -72,6 +76,7 @@ def get_square_color(total_count, foreign_language_count, articles_after_2010_co
         return '2'
     return '0'
 
+#Получает строку и возвращает список записей 
 def parse_bibtex(file_contents: str):
     entries = []
     current_entry = None
@@ -105,6 +110,7 @@ def parse_bibtex(file_contents: str):
 
     return entries
 
+#Проверяет весь файл, на основе функций сверху
 def validate_bibtex_file(file_contents: str):
     logger.debug(f"Input file contents:\n{file_contents}")
     entries = parse_bibtex(file_contents)
@@ -113,15 +119,24 @@ def validate_bibtex_file(file_contents: str):
         logger.info(f"Parsed entry: ID={entry['ID']}, Type={entry['ENTRYTYPE']}")
 
     errors = []
+    seen_ids = set() #Для проверки оригинальности ключей
     total_count = 0
     foreign_language_count = 0
     articles_after_2010_count = 0
     literature_21_century_count = 0
+    current_year = datetime.now().year 
 
     for entry in entries:
+
+        entry_id = entry["ID"]
+        if entry_id in seen_ids:
+            errors.append(f"Дублирующийся ID '{entry_id}' (строка {entry['line_number']})")
+        seen_ids.add(entry_id)
+
         entry_type = entry["ENTRYTYPE"]
         if entry_type == "online":
             entry_type = "misc"
+            
         required_fields = get_required_fields(entry_type)
         entry_fields = [field.lower() for field in entry["fields"].keys()]
         line_number = entry["line_number"]
@@ -130,6 +145,13 @@ def validate_bibtex_file(file_contents: str):
         if missing_fields:
             errors.append(f"Отсутствуют обязательные поля {', '.join(missing_fields)} в записи '{entry['ID']}' типа '{entry_type}' (строка {line_number})")
 
+        #Проверка года, больше ли он текущего
+        year_str = entry["fields"].get("year", "")
+        if year_str.isdigit():
+            year = int(year_str)
+            if year > current_year:
+                errors.append(f"Год публикации {year} в будущем для записи '{entry['ID']}' (строка {line_number})")
+        
         total_count += 1
         title = entry["fields"].get("title", "")
         year = entry["fields"].get("year", "")
@@ -148,7 +170,7 @@ def validate_bibtex_file(file_contents: str):
             foreign_language_count += 1
 
     logger.info(f"Total: {total_count}, Foreign: {foreign_language_count}, After 2010: {articles_after_2010_count}, 21st: {literature_21_century_count}")
-    course_compliance = get_square_color(total_count, foreign_language_count, articles_after_2010_count, literature_21_century_count)
+    course_compliance = get_course(total_count, foreign_language_count, articles_after_2010_count, literature_21_century_count)
     logger.info(f"Course compliance: {course_compliance}")
 
     return {

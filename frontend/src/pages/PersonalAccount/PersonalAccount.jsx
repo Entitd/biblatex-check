@@ -21,7 +21,8 @@ import { UserContext } from '../../UserContext';
 import { ThemeContext } from '../../components/ThemeToggleButton/ThemeContext';
 import ThemeToggleButton from "../../components/ThemeToggleButton/ThemeToggleButton.jsx";
 import { useNavigate } from "react-router-dom";
-
+import LoginIcon from '@mui/icons-material/Login';
+import HowToRegIcon from '@mui/icons-material/HowToReg';
 const guestAxios = axios.create({
   withCredentials: false,
 });
@@ -551,117 +552,195 @@ const PersonalAccount = () => {
 
   return (
     <>
-      <CssBaseline />
-      <Container
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        ref={dropRef}
-        maxWidth={false}
-        sx={{ position: 'relative', padding: '20px', height: '100vh', overflow: 'hidden', backgroundColor: 'background.default', width: '100%', margin: '0 auto' }}
-      >
-        {isDragging && (
-          <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#fff', background: 'rgba(255, 255, 255, 0.1)', padding: '15px 25px', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.2)' }}>
-              Перетащите файл сюда, чтобы загрузить
-            </Typography>
-          </Box>
-        )}
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 2, width: '100%' }} onClose={() => setError(null)}>
-            {error}
-          </Alert>
-        )}
-
-        {isGuest && (
-          <Alert severity="warning" sx={{ mb: 2, width: '100%' }}>
-            Вы в гостевом режиме. Все ваши данные будут удалены после завершения сессии.
-          </Alert>
-        )}
-
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4} sx={{ width: '100%' }}>
-          <Typography variant="h4" sx={{ fontWeight: 'bold', fontSize: '2rem', color: 'text.primary' }}>BIBTEXCHECK</Typography>
-          <Typography variant="h6" sx={{ fontSize: '1.2rem', color: 'text.secondary' }}>
-            {isGuest ? "Гостевой режим" : `ID пользователя: ${user ? user.id_user : 'Неизвестно'}`}
+ <CssBaseline />
+  <Container
+    onDragOver={handleDragOver}
+    onDragLeave={handleDragLeave}
+    onDrop={handleDrop}
+    ref={dropRef}
+    maxWidth={false}
+    sx={{
+      position: 'relative',
+      padding: '20px',
+      height: '100vh',
+      overflow: 'auto',
+      backgroundColor: 'background.default',
+      width: '100%',
+      margin: '0 auto',
+      display: 'flex',
+      flexDirection: 'column'
+    }}
+  >
+       <Box>
+      {isDragging && (
+        <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#fff', background: 'rgba(255, 255, 255, 0.1)', padding: '15px 25px', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.2)' }}>
+            Перетащите файл сюда, чтобы загрузить
           </Typography>
-          <Box display="flex" alignItems="center" gap={1} sx={{ width: 'auto' }}>
-            <ThemeToggleButton />
-            {isGuest ? (
-              <>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  size="small"
-                  onClick={() => navigate("/login")}
-                  sx={{ width: 'auto' }}
-                >
-                  Вход
-                </Button>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  size="small"
-                  onClick={() => navigate("/register")}
-                  sx={{ width: 'auto' }}
-                >
-                  Регистрация
-                </Button>
-              </>
-            ) : (
-              <>
-                <IconButton aria-label="account" onClick={handleMenuOpen} sx={{ color: 'text.primary' }}>
-                  <AccountCircleIcon fontSize="large" />
-                </IconButton>
-                <Menu
-                  id="menu-appbar"
-                  anchorEl={anchorEl}
-                  open={Boolean(anchorEl)}
-                  onClose={handleMenuClose}
-                  PaperProps={{ elevation: 3, sx: { borderRadius: '10px', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)' } }}
-                >
-                  <MenuItem onClick={handleLogout}>Выйти</MenuItem>
-                </Menu>
-              </>
-            )}
+        </Box>
+      )}
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2, width: '100%' }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {isGuest && (
+        <Alert severity="warning" sx={{ mb: 2, width: '100%' }}>
+          Вы в гостевом режиме. Все ваши данные будут удалены после завершения сессии.
+        </Alert>
+      )}
+
+      <Box display="flex" flexDirection="column" gap={2} sx={{ width: '100%' }}>
+          {/* Первая строка: Название и кнопки авторизации */}
+          <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ width: '100%' }}>
+            {/* Название сайта */}
+            <Typography variant="h4" sx={{
+              fontWeight: 'bold',
+              fontSize: { xs: '1.5rem', sm: '2rem' },
+              color: 'text.primary',
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              flexShrink: 1
+            }}>
+              BIBCHECK
+            </Typography>
+
+            {/* Блок с кнопками */}
+            <Box display="flex" alignItems="center" gap={1} sx={{
+              flexShrink: 0,
+              ml: 2 // Добавляем отступ слева
+            }}>
+              <ThemeToggleButton />
+              {isGuest ? (
+                <>
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    size="small"
+                    onClick={() => navigate("/login")}
+                    sx={{
+                      whiteSpace: 'nowrap',
+                      minWidth: 'max-content',
+                      fontSize: { xs: '0.7rem', sm: '0.875rem' }
+                    }}
+                  >
+                    Вход
+                  </Button>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="small"
+                    onClick={() => navigate("/register")}
+                    sx={{
+                      whiteSpace: 'nowrap',
+                      minWidth: 'max-content',
+                      fontSize: { xs: '0.7rem', sm: '0.875rem' }
+                    }}
+                  >
+                    Регистрация
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <IconButton
+                    aria-label="account"
+                    onClick={handleMenuOpen}
+                    sx={{ color: 'text.primary' }}
+                  >
+                    <AccountCircleIcon fontSize={isMobile ? "medium" : "large"} />
+                  </IconButton>
+                  <Menu
+                    id="menu-appbar"
+                    anchorEl={anchorEl}
+                    open={Boolean(anchorEl)}
+                    onClose={handleMenuClose}
+                    PaperProps={{
+                      elevation: 3,
+                      sx: {
+                        borderRadius: '10px',
+                        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)'
+                      }
+                    }}
+                  >
+                    <MenuItem onClick={handleLogout}>Выйти</MenuItem>
+                  </Menu>
+                </>
+              )}
+            </Box>
+          </Box>
+
+          {/* Вторая строка: Поле поиска и другие элементы */}
+          <Box display="flex" gap={2} flexWrap="wrap" sx={{ width: '100%' }}>
+            {/* Поле поиска с гарантированным пространством */}
+            <Box flex={1} sx={{
+              minWidth: { xs: '100%', sm: '300px' }, // Минимальная ширина
+              maxWidth: '100%'
+            }}>
+              <TextField
+                fullWidth
+                placeholder="Поиск"
+                variant="outlined"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
+                  endAdornment: searchText && (
+                    <InputAdornment position="end">
+                      <IconButton onClick={handleClearSearch} size="small">
+                        <ClearIcon />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Box>
+
+            {/* Остальные кнопки */}
+            <Box display="flex" gap={2} sx={{
+              flexShrink: 0,
+              width: { xs: '100%', sm: 'auto' }
+            }}>
+              <Button
+                variant="contained"
+                onClick={handleCreateBibFile}
+                sx={{
+                  whiteSpace: 'nowrap',
+                  flex: { xs: 1, sm: 'none' }
+                }}
+              >
+                Создать bib-файл
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => document.getElementById('upload-bib-file').click()}
+                sx={{
+                  whiteSpace: 'nowrap',
+                  flex: { xs: 1, sm: 'none' }
+                }}
+              >
+                Загрузить bib-файл
+              </Button>
+            </Box>
           </Box>
         </Box>
-
-        <Box display="flex" gap={2} mb={4} flexWrap="wrap" sx={{ width: '100%' }}>
-          <Box flex={1} display="flex" alignItems="center" sx={{ width: '100%' }}>
-            <TextField
-              fullWidth
-              placeholder="Поиск"
-              variant="outlined"
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              InputProps={{
-                startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: 'text.secondary' }} /></InputAdornment>,
-                endAdornment: searchText && <InputAdornment position="end"><IconButton onClick={handleClearSearch}><ClearIcon sx={{ color: 'text.secondary' }} /></IconButton></InputAdornment>,
-              }}
-              sx={{ backgroundColor: 'background.paper', '& .MuiInputBase-input': { color: 'text.primary' }, width: '100%' }}
-            />
-          </Box>
-          <Button variant="contained" onClick={handleCreateBibFile} sx={{ backgroundColor: 'primary.main', color: '#fff', '&:hover': { backgroundColor: 'primary.dark' }, width: 'auto' }}>
-            Создать bib-файл
-          </Button>
-          <Button variant="outlined" onClick={() => document.getElementById('upload-bib-file').click()} sx={{ borderColor: 'primary.main', color: 'primary.main', '&:hover': { backgroundColor: 'primary.light' }, width: 'auto' }}>
-            Загрузить bib-файл
-          </Button>
-          <input id="upload-bib-file" type="file" style={{ display: 'none' }} onChange={uploadBibFiles} />
         </Box>
 
         <Paper sx={{
-          borderRadius: '15px',
-          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
-          overflow: 'hidden',
-          background: 'background.paper',
-          height: 'calc(100vh - 200px)',
-          width: '100%',
-          marginBottom: '20px',
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
+      borderRadius: '15px',
+      boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
+      overflow: 'hidden',
+      background: 'background.paper',
+      flex: '1 1 auto', // Гибкое заполнение доступного пространства
+      marginTop: '20px',
+      minHeight: '300px', // Минимальная высота
+      display: 'flex',
+      flexDirection: 'column',
+      position: 'relative'
+    }}>
           {/* Версия для средних и больших экранов */}
           {!isMobile ? (
             <>
@@ -986,7 +1065,7 @@ const PersonalAccount = () => {
               mt: 5,
               borderRadius: '15px',
               boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-              background: 'background.paper',   
+              background: 'background.paper',
               maxHeight: '80vh',
               overflowY: 'auto',
               zIndex: 1300,

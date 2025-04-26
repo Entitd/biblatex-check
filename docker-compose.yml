@@ -10,7 +10,6 @@ services:
       - "8000"
     volumes:
       - ./backend/uploads:/app/uploads
-      - ./backend:/app
       - ./frontend/dist:/app/frontend_dist
     environment:
       - SECRET_KEY=123123123

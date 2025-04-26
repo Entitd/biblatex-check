@@ -23,6 +23,55 @@ export const lightTheme = createTheme({
     typography: {
         fontFamily: fontFamily,
     },
+    components: {
+        MuiPaper: {
+          styleOverrides: {
+            root: {
+              backgroundColor: '#ffffff', // Белый фон для Paper
+              border: '1px solid #e1e4e8', // Светлая граница
+              borderRadius: '12px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)', // Более мягкая тень
+            },
+          },
+        },
+        MuiTable: {
+          styleOverrides: {
+            root: {
+              backgroundColor: '#ffffff', // Белый фон для таблицы
+              '& .MuiTableCell-root': {
+                color: '#24292e', // Темный текст в ячейках
+                borderBottom: '1px solid #e1e4e8', // Светлая граница между строками
+                backgroundColor: '#ffffff', // Белый фон ячеек
+              },
+              '& .MuiTableHead-root .MuiTableCell-root': {
+                color: '#24292e', // Темный текст в заголовке
+                backgroundColor: '#f6f8fa', // Светло-серый фон заголовка
+                fontWeight: 'bold',
+                borderBottom: '1px solid #e1e4e8', // Светлая граница под заголовком
+              },
+            },
+          },
+        },
+        MuiTextField: {
+          styleOverrides: {
+            root: {
+              backgroundColor: '#ffffff', // Белый фон для TextField
+              '& .MuiInputBase-input': {
+                color: '#24292e', // Темный текст ввода
+              },
+              '& .MuiOutlinedInput-notchedOutline': {
+                borderColor: '#e1e4e8', // Светлая граница
+              },
+              '&:hover .MuiOutlinedInput-notchedOutline': {
+                borderColor: '#0366d6', // Синий при наведении
+              },
+              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                borderColor: '#0366d6', // Синий при фокусе
+              },
+            },
+          },
+        },
+      }
 });
 
 export const darkTheme = createTheme({
