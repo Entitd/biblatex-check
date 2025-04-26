@@ -1,7 +1,17 @@
-import React, { useState, useContext } from "react";
+import React, { useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from 'axios';
-import { Container, Box, Typography, TextField, Button, Paper, Alert, CssBaseline } from "@mui/material";
+import {
+  Container,
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Paper,
+  Alert,
+  CssBaseline,
+  useTheme
+} from "@mui/material";
 import { UserContext } from '../../UserContext';
 import { ThemeContext } from '../../components/ThemeToggleButton/ThemeContext';
 import ThemeToggleButton from "../../components/ThemeToggleButton/ThemeToggleButton.jsx";
@@ -10,6 +20,7 @@ const RegistrationPage = () => {
     const navigate = useNavigate();
     const { login } = useContext(UserContext);
     const { isDarkMode } = useContext(ThemeContext);
+    const theme = useTheme();
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -90,6 +101,7 @@ const RegistrationPage = () => {
             if (error.response && error.response.status === 400) {
                 setError("Пользователь с таким логином уже существует.");
             } else {
+                setError("Произошла ошибка при регистрации или входе.");
             }
         }
     };
@@ -97,104 +109,244 @@ const RegistrationPage = () => {
     return (
         <>
             <CssBaseline />
-                <Container maxWidth="sm">
+            <Container
+                maxWidth="sm"
+                sx={{
+                    minHeight: '100vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    py: 4
+                }}
+            >
+                <Box sx={{
+                    position: 'absolute',
+                    top: theme.spacing(2),
+                    right: theme.spacing(2)
+                }}>
                     <ThemeToggleButton />
-                    <Paper
-                        elevation={3}
+                </Box>
+
+                <Paper
+                    elevation={3}
+                    sx={{
+                        width: '100%',
+                        maxWidth: 500,
+                        p: theme.spacing(4),
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        backgroundColor: 'background.paper',
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: theme.shape.borderRadius,
+                        boxShadow: theme.shadows[3]
+                    }}
+                >
+                    <Typography
+                        component="h1"
+                        variant="h5"
                         sx={{
-                            padding: 4,
-                            marginTop: 8,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            backgroundColor: 'background.paper',
+                            mb: 2,
+                            color: 'text.primary',
+                            fontWeight: 500,
+                            fontSize: '1.5rem'
                         }}
                     >
-                        <Typography component="h1" variant="h4">
-                            Регистрация
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary" align="center">
-                            Ваши логин и пароль будут использоваться для входа в аккаунт
-                        </Typography>
-                        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
-                            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-                            <TextField
-                                margin="normal"
-                                required
-                                fullWidth
-                                id="username"
-                                label="Логин"
-                                name="username"
-                                autoComplete="username"
-                                autoFocus
-                                value={username}
-                                onChange={(e) => {
-                                    setUsername(e.target.value);
-                                    setUsernameError(validateUsername(e.target.value));
-                                }}
-                                error={!!usernameError}
-                                helperText={usernameError}
+                        Регистрация
+                    </Typography>
+                    <Typography
+                        variant="body1"
+                        color="text.secondary"
+                        align="center"
+                        sx={{
+                            mb: 3,
+                            fontSize: '0.875rem'
+                        }}
+                    >
+                        Ваши логин и пароль будут использоваться для входа в аккаунт
+                    </Typography>
+
+                    <Box
+                        component="form"
+                        onSubmit={handleSubmit}
+                        sx={{
+                            width: '100%',
+                            mt: 1
+                        }}
+                    >
+                        {error && (
+                            <Alert
+                                severity="error"
                                 sx={{
-                                    backgroundColor: 'background.paper',
-                                    '& .MuiInputBase-input': { color: 'text.primary' },
+                                    mb: 2,
+                                    '& .MuiAlert-message': {
+                                        fontSize: '0.875rem'
+                                    }
                                 }}
-                            />
-                            <TextField
-                                margin="normal"
-                                required
-                                fullWidth
-                                name="password"
-                                label="Придумайте пароль"
-                                type="password"
-                                id="password"
-                                autoComplete="new-password"
-                                value={password}
-                                onChange={(e) => {
-                                    setPassword(e.target.value);
-                                    setPasswordError(validatePassword(e.target.value));
-                                    setConfirmPasswordError(validateConfirmPassword(confirmPassword, e.target.value));
-                                }}
-                                error={!!passwordError}
-                                helperText={passwordError}
-                                sx={{
-                                    backgroundColor: 'background.paper',
-                                    '& .MuiInputBase-input': { color: 'text.primary' },
-                                }}
-                            />
-                            <TextField
-                                margin="normal"
-                                required
-                                fullWidth
-                                name="confirmPassword"
-                                label="Повторите пароль"
-                                type="password"
-                                id="confirmPassword"
-                                autoComplete="new-password"
-                                value={confirmPassword}
-                                onChange={(e) => {
-                                    setConfirmPassword(e.target.value);
-                                    setConfirmPasswordError(validateConfirmPassword(e.target.value, password));
-                                }}
-                                error={!!confirmPasswordError}
-                                helperText={confirmPasswordError}
-                                sx={{
-                                    backgroundColor: 'background.paper',
-                                    '& .MuiInputBase-input': { color: 'text.primary' },
-                                }}
-                            />
-                            <Button
-                                type="submit"
-                                fullWidth
-                                variant="contained"
-                                color="primary"
-                                sx={{ mt: 3, mb: 2 }}
-                                disabled={!!usernameError || !!passwordError || !!confirmPasswordError}
                             >
-                                Зарегистрироваться
-                            </Button>
-                        </Box>
-                    </Paper>
-                </Container>
+                                {error}
+                            </Alert>
+                        )}
+
+                        <TextField
+                            margin="normal"
+                            required
+                            fullWidth
+                            id="username"
+                            label="Логин"
+                            name="username"
+                            autoComplete="username"
+                            autoFocus
+                            value={username}
+                            onChange={(e) => {
+                                setUsername(e.target.value);
+                                setUsernameError(validateUsername(e.target.value));
+                            }}
+                            error={!!usernameError}
+                            helperText={usernameError}
+                            FormHelperTextProps={{
+                                sx: { fontSize: '0.75rem' }
+                            }}
+                            InputLabelProps={{
+                                sx: {
+                                    fontSize: '0.875rem',
+                                    color: 'text.secondary'
+                                }
+                            }}
+                            InputProps={{
+                                sx: {
+                                    fontSize: '0.875rem',
+                                    color: 'text.primary'
+                                }
+                            }}
+                            sx={{
+                                '& .MuiOutlinedInput-root': {
+                                    '& fieldset': {
+                                        borderColor: 'divider'
+                                    },
+                                    '&:hover fieldset': {
+                                        borderColor: 'primary.main'
+                                    },
+                                    '&.Mui-focused fieldset': {
+                                        borderColor: 'primary.main'
+                                    }
+                                }
+                            }}
+                        />
+
+                        <TextField
+                            margin="normal"
+                            required
+                            fullWidth
+                            name="password"
+                            label="Придумайте пароль"
+                            type="password"
+                            id="password"
+                            autoComplete="new-password"
+                            value={password}
+                            onChange={(e) => {
+                                setPassword(e.target.value);
+                                setPasswordError(validatePassword(e.target.value));
+                                setConfirmPasswordError(validateConfirmPassword(confirmPassword, e.target.value));
+                            }}
+                            error={!!passwordError}
+                            helperText={passwordError}
+                            FormHelperTextProps={{
+                                sx: { fontSize: '0.75rem' }
+                            }}
+                            InputLabelProps={{
+                                sx: {
+                                    fontSize: '0.875rem',
+                                    color: 'text.secondary'
+                                }
+                            }}
+                            InputProps={{
+                                sx: {
+                                    fontSize: '0.875rem',
+                                    color: 'text.primary'
+                                }
+                            }}
+                            sx={{
+                                '& .MuiOutlinedInput-root': {
+                                    '& fieldset': {
+                                        borderColor: 'divider'
+                                    },
+                                    '&:hover fieldset': {
+                                        borderColor: 'primary.main'
+                                    },
+                                    '&.Mui-focused fieldset': {
+                                        borderColor: 'primary.main'
+                                    }
+                                }
+                            }}
+                        />
+
+                        <TextField
+                            margin="normal"
+                            required
+                            fullWidth
+                            name="confirmPassword"
+                            label="Повторите пароль"
+                            type="password"
+                            id="confirmPassword"
+                            autoComplete="new-password"
+                            value={confirmPassword}
+                            onChange={(e) => {
+                                setConfirmPassword(e.target.value);
+                                setConfirmPasswordError(validateConfirmPassword(e.target.value, password));
+                            }}
+                            error={!!confirmPasswordError}
+                            helperText={confirmPasswordError}
+                            FormHelperTextProps={{
+                                sx: { fontSize: '0.75rem' }
+                            }}
+                            InputLabelProps={{
+                                sx: {
+                                    fontSize: '0.875rem',
+                                    color: 'text.secondary'
+                                }
+                            }}
+                            InputProps={{
+                                sx: {
+                                    fontSize: '0.875rem',
+                                    color: 'text.primary'
+                                }
+                            }}
+                            sx={{
+                                '& .MuiOutlinedInput-root': {
+                                    '& fieldset': {
+                                        borderColor: 'divider'
+                                    },
+                                    '&:hover fieldset': {
+                                        borderColor: 'primary.main'
+                                    },
+                                    '&.Mui-focused fieldset': {
+                                        borderColor: 'primary.main'
+                                    }
+                                }
+                            }}
+                        />
+
+                        <Button
+                            type="submit"
+                            fullWidth
+                            variant="contained"
+                            color="primary"
+                            sx={{
+                                mt: 3,
+                                mb: 2,
+                                py: 1.5,
+                                fontSize: '0.875rem',
+                                fontWeight: 500
+                            }}
+                            disabled={!!usernameError || !!passwordError || !!confirmPasswordError}
+                        >
+                            Зарегистрироваться
+                        </Button>
+                    </Box>
+                </Paper>
+            </Container>
         </>
     );
 };
