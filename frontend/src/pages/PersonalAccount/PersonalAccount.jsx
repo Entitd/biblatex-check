@@ -234,22 +234,43 @@ const PersonalAccount = () => {
   };
 
   const saveBibFiles = async () => {
-    const formattedSources = sources.map((source, index) => ({
+    // Фильтруем пустые записи (где все поля пустые)
+    const nonEmptySources = sources.filter(source => {
+      return Object.values(source.fields).some(value => value.trim() !== '');
+    });
+  
+    // Если все записи пустые
+    if (nonEmptySources.length === 0) {
+      setError("Создаваемый файл не может быть пустым");
+      return;
+    }
+  
+    // Если есть как пустые, так и непустые записи
+    const hasEmptySources = nonEmptySources.length < sources.length;
+    
+    const formattedSources = nonEmptySources.map((source, index) => ({
       ...source.fields,
       ID: `source${index + 1}`,
       type: source.type,
     }));
+  
     try {
       if (isGuest) {
         await guestAxios.post('/api/guest/save-bib', { sessionId, files: formattedSources });
       } else {
         await authAxios.post('/api/save-bib', { files: formattedSources });
       }
+      
       setModalOpen(false);
       setSources([]);
       setCurrentSourceIndex(0);
       setHasSource(false);
       fetchFiles();
+      
+      // Показываем сообщение о пустых записях, если они были
+      if (hasEmptySources) {
+        setError("Некоторые записи оказались пустыми и не были сохранены");
+      }
     } catch (error) {
       if (error.response?.status === 401 && !isGuest) {
         await refreshToken();
@@ -1046,31 +1067,41 @@ const PersonalAccount = () => {
         </Paper>
 
         <Modal
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          closeAfterTransition
-          slots={{ backdrop: Backdrop }}
-          slotProps={{
-            backdrop: {
-              timeout: 500,
-              sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
-            },
-          }}
-        >
-          <Fade in={modalOpen}>
-            <Paper sx={{
-              width: { xs: '80%', sm: '80%', md: '80%' },
-              p: 3,
-              mx: "auto",
-              mt: 5,
-              borderRadius: '15px',
-              boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-              background: 'background.paper',
-              maxHeight: '80vh',
-              overflowY: 'auto',
-              zIndex: 1300,
-            }}>
-              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>Создать bib-файл</Typography>
+  open={modalOpen}
+  onClose={() => {
+    setModalOpen(false);
+    setError(null); // Сбрасываем ошибку при закрытии
+  }}
+  closeAfterTransition
+  slots={{ backdrop: Backdrop }}
+  slotProps={{
+    backdrop: {
+      timeout: 500,
+      sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
+    },
+  }}
+>
+  <Fade in={modalOpen}>
+    <Paper sx={{
+      width: { xs: '80%', sm: '80%', md: '80%' },
+      p: 3,
+      mx: "auto",
+      mt: 5,
+      borderRadius: '15px',
+      boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+      background: 'background.paper',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      zIndex: 1300,
+    }}>
+      <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>Создать bib-файл</Typography>
+      
+      {/* Добавленный Alert для отображения ошибок */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
               <FormControl fullWidth margin="normal" sx={{ width: '100%' }}>
                 <InputLabel id="type-label">Тип записи</InputLabel>
                 <Select
