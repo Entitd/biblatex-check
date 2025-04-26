@@ -406,7 +406,25 @@ const PersonalAccount = () => {
       const content = response.data.content;
       const { sources: parsedSources, sourceLines } = parseBibFile(content);
       let errorLines = {};
-
+  
+      // Добавляем обязательные поля для каждого источника
+      const sourcesWithRequiredFields = parsedSources.map(source => {
+        const requiredFields = getRequiredFieldsForType(source.type || 'misc');
+        const fieldsWithRequired = { ...source.fields };
+        
+        // Добавляем обязательные поля, если их нет
+        requiredFields.forEach(field => {
+          if (!fieldsWithRequired[field]) {
+            fieldsWithRequired[field] = '';
+          }
+        });
+  
+        return {
+          ...source,
+          fields: fieldsWithRequired
+        };
+      });
+  
       if (!sourceLines || sourceLines.length === 0) {
         if (file.errors && typeof file.errors === 'string') {
           const errorLinesArray = file.errors.split('\n').filter(line => line.trim());
@@ -437,10 +455,10 @@ const PersonalAccount = () => {
           }
         });
       }
-
-      setSources(parsedSources);
+  
+      setSources(sourcesWithRequiredFields);
       setCurrentSourceIndex(0);
-      setCurrentFields(getFieldsForType(parsedSources[0]?.type || ''));
+      setCurrentFields(getFieldsForType(sourcesWithRequiredFields[0]?.type || ''));
       setEditContent(content);
       setEditFileId(file.id);
       setEditedLines(errorLines);
@@ -458,19 +476,43 @@ const PersonalAccount = () => {
   };
 
   const handleSaveEditedFile = async () => {
-    const formattedSources = sources.map((source, index) => ({
-      ...source.fields,
-      ID: `source${index + 1}`,
-      type: source.type || 'misc',
-    }));
+    // Фильтруем пустые записи (где все поля пустые)
+    const nonEmptySources = sources.filter(source => {
+      return Object.values(source.fields).some(value => value.trim() !== '');
+    });
+  
+    // Если все записи пустые
+    if (nonEmptySources.length === 0) {
+      setError("Файл не может быть пустым");
+      return;
+    }
+  
+    const formattedSources = nonEmptySources.map((source, index) => {
+      // Удаляем пустые обязательные поля, которые мы добавили автоматически
+      const cleanedFields = { ...source.fields };
+      const requiredFields = getRequiredFieldsForType(source.type || 'misc');
+      
+      requiredFields.forEach(field => {
+        if (cleanedFields[field] === '') {
+          delete cleanedFields[field];
+        }
+      });
+  
+      return {
+        ...cleanedFields,
+        ID: `source${index + 1}`,
+        type: source.type || 'misc',
+      };
+    });
+  
     const content = formattedSources
       .map(source => `@${source.type}{${source.ID},\n` +
         Object.entries(source)
           .filter(([key]) => key !== 'ID' && key !== 'type')
-          .map(([key, value]) => `  ${key} = {${value || ''}},`)
-          .join('\n') + '\n}')
-      .join('\n');
-
+          .map(([key, value]) => `  ${key} = {${value || ''}}`)
+          .join(',\n') + '\n}')
+      .join('\n\n');
+  
     try {
       if (!editFileId) {
         setError("Ошибка: ID файла не определён.");
@@ -481,12 +523,12 @@ const PersonalAccount = () => {
         ? { sessionId, file_id: editFileId, content }
         : { file_id: editFileId, content };
       const response = await (isGuest ? guestAxios : authAxios).post(endpoint, payload, { withCredentials: true });
-
+  
       if (response.data.errors) {
         const { sourceLines } = parseBibFile(content);
         const errorLines = {};
         let errorLinesArray = [];
-
+  
         if (typeof response.data.errors === 'string') {
           errorLinesArray = response.data.errors.split('\n').filter(line => line.trim());
         } else if (Array.isArray(response.data.errors)) {
@@ -496,7 +538,7 @@ const PersonalAccount = () => {
         } else {
           errorLinesArray = [];
         }
-
+  
         if (!sourceLines || sourceLines.length === 0) {
           errorLines[0] = errorLinesArray.join('\n');
         } else {
