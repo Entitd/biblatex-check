@@ -324,6 +324,8 @@ const PersonalAccount = () => {
     setCurrentFields(getFieldsForType(type));
   };
 
+  const currentYear = new Date().getFullYear();
+
   const addSource = () => {
     const newSource = { type: '', fields: {} };
     setSources([...sources, newSource]);
@@ -523,9 +525,21 @@ const PersonalAccount = () => {
     }
   };
 
-
+  const handleSnackbarClose = () => {
+    setSnackbar({...snackbar, open: false});
+  };
   
   const handleSaveEditedFile = async () => {
+    const yearErrors = sources.filter(source => {
+      const yearValue = source.fields.year;
+      return yearValue && (isNaN(yearValue) || parseInt(yearValue) > currentYear);
+    });
+  
+    if (yearErrors.length > 0) {
+      setError(`Исправьте год публикации (не может быть больше ${currentYear})`);
+      return;
+    }
+  
     // Фильтруем пустые записи (где все поля пустые)
     const nonEmptySources = sources.filter(source => {
       return Object.values(source.fields).some(value => value.trim() !== '');
@@ -571,45 +585,37 @@ const PersonalAccount = () => {
         return;
       }
   
-
-
-    const endpoint = isGuest ? "/api/guest/save-bib" : "/api/save-bib";
-    const payload = isGuest
-      ? { sessionId, file_id: editFileId, content }
-      : { file_id: editFileId, content };
-    const response = await (isGuest ? guestAxios : authAxios).post(endpoint, payload, { withCredentials: true });
-
-
-      // Запускаем повторную проверку файла
-      const revalidateResponse = await revalidateFile(editFileId);
+      const endpoint = isGuest ? "/api/guest/save-bib" : "/api/save-bib";
+      const payload = isGuest
+        ? { sessionId, file_id: editFileId, content }
+        : { file_id: editFileId, content };
+      
+      // Сохраняем файл в любом случае
+      await (isGuest ? guestAxios : authAxios).post(endpoint, payload, { withCredentials: true });
   
-      if (revalidateResponse.errors) {
-        // Парсим ошибки и сопоставляем их с источниками
-        const { sourceLines } = parseBibFile(content);
-        const errorLines = {};
-        let errorLinesArray = [];
+      // Запускаем повторную проверку файла, но не блокируем сохранение при ошибках
+      try {
+        const revalidateResponse = await revalidateFile(editFileId);
+        if (revalidateResponse.errors) {
+          // Парсим ошибки для отображения пользователю
+          const { sourceLines } = parseBibFile(content);
+          const errorLines = {};
+          let errorLinesArray = [];
   
-        if (typeof revalidateResponse.errors === 'string') {
-          errorLinesArray = revalidateResponse.errors.split('\n').filter(line => line.trim());
-        } else if (Array.isArray(revalidateResponse.errors)) {
-          errorLinesArray = revalidateResponse.errors;
-        } else if (typeof revalidateResponse.errors === 'object') {
-          errorLinesArray = Object.values(revalidateResponse.errors);
-        } else {
-          errorLinesArray = [];
-        }
+          if (typeof revalidateResponse.errors === 'string') {
+            errorLinesArray = revalidateResponse.errors.split('\n').filter(line => line.trim());
+          } else if (Array.isArray(revalidateResponse.errors)) {
+            errorLinesArray = revalidateResponse.errors;
+          } else if (typeof revalidateResponse.errors === 'object') {
+            errorLinesArray = Object.values(revalidateResponse.errors);
+          }
   
-        // Сопоставляем ошибки с конкретными источниками
-        if (!sourceLines || sourceLines.length === 0) {
-          errorLines[0] = errorLinesArray.join('\n');
-        } else {
           errorLinesArray.forEach(error => {
             const match = error.match(/\(строка (\d+)\)$/);
             if (match) {
               const lineNumber = parseInt(match[1], 10) - 1;
               let sourceIndex = -1;
               
-              // Находим к какому источнику относится ошибка
               if (sourceLines && sourceLines.length > 0) {
                 sourceIndex = sourceLines.findIndex((startLine, idx) => {
                   const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
@@ -623,30 +629,36 @@ const PersonalAccount = () => {
               }
             }
           });
-        }
   
-        // Обновляем состояние с ошибками
-        setEditedLines(errorLines);
-        setError(null);
-        fetchFiles(); // Обновляем список файлов
-      } else {
-        // Если ошибок нет - закрываем модальное окно
-        setEditedLines({});
-        setError(null);
-        setEditModalOpen(false);
-        fetchFiles(); // Обновляем список файлов
-        
-        // Показываем уведомление об успешном сохранении
+          setEditedLines(errorLines);
+          setSnackbar({
+            open: true,
+            message: "Файл сохранён, но содержит ошибки",
+            severity: "warning"
+          });
+        } else {
+          setEditedLines({});
+          setSnackbar({
+            open: true,
+            message: "Файл успешно проверен и сохранён",
+            severity: "success"
+          });
+        }
+      } catch (revalidateError) {
+        console.error("Ошибка при повторной проверке файла:", revalidateError);
         setSnackbar({
           open: true,
-          message: "Файл успешно проверен и сохранён",
-          severity: "success"
+          message: "Файл сохранён, но не удалось проверить ошибки",
+          severity: "warning"
         });
       }
+  
+      // В любом случае закрываем модальное окно и обновляем список файлов
+      setEditModalOpen(false);
+      fetchFiles();
+      
     } catch (error) {
       console.error("Ошибка при сохранении файла:", error);
-      
-      // Обрабатываем разные типы ошибок
       let errorMessage = "Не удалось сохранить изменения";
       if (error.response) {
         errorMessage += `: ${error.response.data?.detail || error.response.statusText}`;
@@ -655,8 +667,6 @@ const PersonalAccount = () => {
       }
       
       setError(errorMessage);
-      
-      // Показываем уведомление об ошибке
       setSnackbar({
         open: true,
         message: errorMessage,
@@ -1390,25 +1400,50 @@ const PersonalAccount = () => {
                           </Select>
                         </FormControl>
 
-                        {standard.map((field) => (
-                          <TextField
-                            key={field}
-                            fullWidth
-                            margin="dense"
-                            label={field}
-                            value={updatedFields[field] || ''}
-                            onChange={(e) => handleSourceChange(index, field, e.target.value)}
-                            sx={{
-                              width: '100%',
-                              '& .MuiInputBase-input': {
-                                textDecoration: missingFields.includes(field) ? 'underline red' : 'none',
-                                color: missingFields.includes(field) ? 'error.main' : 'text.primary',
-                              },
-                            }}
-                            error={missingFields.includes(field)}
-                            helperText={missingFields.includes(field) ? 'Обязательное поле, добавлено автоматически' : ''}
-                          />
-                        ))}
+                        {required.concat(optional).map((field) => {
+  const isYearField = field === 'year';
+  const fieldValue = updatedFields[field] || '';
+  const isInvalidYear = isYearField && fieldValue && 
+                      (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
+  const isMissingField = missingFields.includes(field);
+
+  return (
+    <TextField
+      key={field}
+      fullWidth
+      margin="dense"
+      label={field}
+      value={fieldValue}
+      onChange={(e) => {
+        if (isYearField) {
+          const value = e.target.value;
+          if (value === '' || /^\d+$/.test(value)) {
+            handleSourceChange(index, field, value);
+          }
+        } else {
+          handleSourceChange(index, field, e.target.value);
+        }
+      }}
+      sx={{
+        width: '100%',
+        '& .MuiInputBase-input': {
+          textDecoration: isMissingField ? 'underline red' : 'none',
+          color: isMissingField || isInvalidYear ? 'error.main' : 'text.primary'
+        },
+      }}
+      error={isMissingField || isInvalidYear}
+      helperText={
+        isMissingField 
+          ? 'Обязательное поле, добавлено автоматически' 
+          : isInvalidYear
+            ? isNaN(fieldValue) 
+              ? 'Год должен быть числом' 
+              : `Год не может быть больше текущего (${currentYear})`
+            : ''
+      }
+    />
+  );
+})}
 
                         {optional.map((field) => (
                           <Box key={field} display="flex" alignItems="center" sx={{ width: '100%' }}>
@@ -1549,6 +1584,14 @@ const PersonalAccount = () => {
           </Fade>
         </Modal>
       </Container>
+      <input
+  id="upload-bib-file"
+  type="file"
+  accept=".bib"
+  style={{ display: 'none' }}
+  onChange={uploadBibFiles}
+  multiple
+/>
     </>
   );
 };
