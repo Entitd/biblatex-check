@@ -8,6 +8,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Snackbar,
 } from "@mui/material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from "@mui/icons-material/Search";
@@ -120,14 +121,14 @@ const PersonalAccount = () => {
 
   const getRequiredFieldsForType = (type) => {
     switch (type) {
-      case "article": return ["author", "title", "journal", "year"];
-      case "book": return ["author", "title", "publisher", "year"];
-      case "conference": return ["author", "title", "booktitle", "year"];
+      case "article": return ["author", "title", "journal", "year", "volume", "number", "pages"];
+      case "book": return ["author", "title", "year", "address", "publisher", "pages"];
+      case "conference": return ["author", "title", "booktitle", "year", "pages", "organization"];
       case "techReport": return ["author", "title", "institution", "year"];
-      case "inProceedings": return ["author", "title", "booktitle", "year"];
+      case "inProceedings": return ["author", "title", "booktitle", "year", "pages", "publisher", "address"];
       case "online": return ["author", "title", "url", "urldate"];
       case "manual": return ["title", "organization", "year"];
-      case "misc": return ["title"];
+      case "misc": return ["author", "title", "urldate", "url"];
       default: return [];
     }
   };
@@ -233,7 +234,25 @@ const PersonalAccount = () => {
     );
   };
 
-
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'info'
+  });
+  
+  // И компонент где-то в рендере:
+  <Snackbar
+    open={snackbar.open}
+    autoHideDuration={6000}
+    onClose={() => setSnackbar({...snackbar, open: false})}
+  >
+    <Alert 
+      severity={snackbar.severity}
+      onClose={() => setSnackbar({...snackbar, open: false})}
+    >
+      {snackbar.message}
+    </Alert>
+  </Snackbar>
   
   const parseBibFile = (content) => {
     const lines = content ? content.split('\n') : [];
@@ -475,6 +494,37 @@ const PersonalAccount = () => {
     }
   };
 
+
+  const revalidateFile = async (fileId) => {
+    try {
+      const endpoint = isGuest ? "/api/guest/revalidate-file" : "/api/revalidate-file";
+      
+      const params = new URLSearchParams();
+      params.append('file_id', fileId.toString());
+      if (isGuest) params.append('sessionId', sessionId);
+  
+      const response = await (isGuest ? guestAxios : authAxios).post(
+        endpoint,
+        params,
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        }
+      );
+  
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 401 && !isGuest) {
+        await refreshToken();
+        return revalidateFile(fileId);
+      }
+      throw error;
+    }
+  };
+
+
+  
   const handleSaveEditedFile = async () => {
     // Фильтруем пустые записи (где все поля пустые)
     const nonEmptySources = sources.filter(source => {
@@ -487,8 +537,9 @@ const PersonalAccount = () => {
       return;
     }
   
+    // Форматируем источники в bibtex-формат
     const formattedSources = nonEmptySources.map((source, index) => {
-      // Удаляем пустые обязательные поля, которые мы добавили автоматически
+      // Удаляем пустые обязательные поля, которые были добавлены автоматически
       const cleanedFields = { ...source.fields };
       const requiredFields = getRequiredFieldsForType(source.type || 'misc');
       
@@ -505,6 +556,7 @@ const PersonalAccount = () => {
       };
     });
   
+    // Генерируем содержимое файла
     const content = formattedSources
       .map(source => `@${source.type}{${source.ID},\n` +
         Object.entries(source)
@@ -515,30 +567,39 @@ const PersonalAccount = () => {
   
     try {
       if (!editFileId) {
-        setError("Ошибка: ID файла не определён.");
+        setError("Ошибка: ID файла не определён");
         return;
       }
-      const endpoint = isGuest ? "/api/guest/save-bib" : "/api/save-bib";
-      const payload = isGuest
-        ? { sessionId, file_id: editFileId, content }
-        : { file_id: editFileId, content };
-      const response = await (isGuest ? guestAxios : authAxios).post(endpoint, payload, { withCredentials: true });
   
-      if (response.data.errors) {
+
+
+    const endpoint = isGuest ? "/api/guest/save-bib" : "/api/save-bib";
+    const payload = isGuest
+      ? { sessionId, file_id: editFileId, content }
+      : { file_id: editFileId, content };
+    const response = await (isGuest ? guestAxios : authAxios).post(endpoint, payload, { withCredentials: true });
+
+
+      // Запускаем повторную проверку файла
+      const revalidateResponse = await revalidateFile(editFileId);
+  
+      if (revalidateResponse.errors) {
+        // Парсим ошибки и сопоставляем их с источниками
         const { sourceLines } = parseBibFile(content);
         const errorLines = {};
         let errorLinesArray = [];
   
-        if (typeof response.data.errors === 'string') {
-          errorLinesArray = response.data.errors.split('\n').filter(line => line.trim());
-        } else if (Array.isArray(response.data.errors)) {
-          errorLinesArray = response.data.errors;
-        } else if (typeof response.data.errors === 'object') {
-          errorLinesArray = Object.values(response.data.errors);
+        if (typeof revalidateResponse.errors === 'string') {
+          errorLinesArray = revalidateResponse.errors.split('\n').filter(line => line.trim());
+        } else if (Array.isArray(revalidateResponse.errors)) {
+          errorLinesArray = revalidateResponse.errors;
+        } else if (typeof revalidateResponse.errors === 'object') {
+          errorLinesArray = Object.values(revalidateResponse.errors);
         } else {
           errorLinesArray = [];
         }
   
+        // Сопоставляем ошибки с конкретными источниками
         if (!sourceLines || sourceLines.length === 0) {
           errorLines[0] = errorLinesArray.join('\n');
         } else {
@@ -547,12 +608,15 @@ const PersonalAccount = () => {
             if (match) {
               const lineNumber = parseInt(match[1], 10) - 1;
               let sourceIndex = -1;
+              
+              // Находим к какому источнику относится ошибка
               if (sourceLines && sourceLines.length > 0) {
                 sourceIndex = sourceLines.findIndex((startLine, idx) => {
                   const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
                   return lineNumber >= startLine && lineNumber < nextStartLine;
                 });
               }
+              
               if (sourceIndex === -1 && sources.length > 0) sourceIndex = 0;
               if (sourceIndex !== -1 && sourceIndex < sources.length) {
                 errorLines[sourceIndex] = error.trim();
@@ -560,26 +624,47 @@ const PersonalAccount = () => {
             }
           });
         }
+  
+        // Обновляем состояние с ошибками
         setEditedLines(errorLines);
         setError(null);
-        setEditModalOpen(true);
-        fetchFiles();
+        fetchFiles(); // Обновляем список файлов
       } else {
+        // Если ошибок нет - закрываем модальное окно
         setEditedLines({});
         setError(null);
         setEditModalOpen(false);
-        fetchFiles();
+        fetchFiles(); // Обновляем список файлов
+        
+        // Показываем уведомление об успешном сохранении
+        setSnackbar({
+          open: true,
+          message: "Файл успешно проверен и сохранён",
+          severity: "success"
+        });
       }
     } catch (error) {
-      if (error.response?.status === 401 && !isGuest) {
-        await refreshToken();
-        handleSaveEditedFile();
-      } else {
-        console.error("Error saving edited file:", error.response?.data || error.message);
-        setError("Не удалось сохранить изменения: " + (error.response?.data?.detail || error.message));
+      console.error("Ошибка при сохранении файла:", error);
+      
+      // Обрабатываем разные типы ошибок
+      let errorMessage = "Не удалось сохранить изменения";
+      if (error.response) {
+        errorMessage += `: ${error.response.data?.detail || error.response.statusText}`;
+      } else if (error.message) {
+        errorMessage += `: ${error.message}`;
       }
+      
+      setError(errorMessage);
+      
+      // Показываем уведомление об ошибке
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: "error"
+      });
     }
   };
+
 
   const handleShowErrors = async (file) => {
     try {
@@ -1159,18 +1244,25 @@ const PersonalAccount = () => {
   }}
 >
   <Fade in={modalOpen}>
-    <Paper sx={{
-      width: { xs: '80%', sm: '80%', md: '80%' },
-      p: 3,
-      mx: "auto",
-      mt: 5,
-      borderRadius: '15px',
-      boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-      background: 'background.paper',
-      maxHeight: '80vh',
-      overflowY: 'auto',
-      zIndex: 1300,
-    }}>
+  <Paper
+  sx={{
+    width: { xs: '90%', sm: '80%', md: '70%' }, // Немного уменьшаем ширину на больших экранах
+    p: 3,
+    position: 'fixed', // Фиксированное позиционирование
+    top: '50%',       // Центрирование по вертикали
+    left: '50%',      // Центрирование по горизонтали
+    transform: 'translate(-50%, -50%)', // Точное центрирование
+    borderRadius: '15px',
+    boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+    background: 'background.paper',
+    height: '90vh',   // Занимаем 90% высоты viewport
+    maxHeight: 'none', // Убираем ограничение максимальной высоты
+    display: 'flex',
+    flexDirection: 'column',
+    zIndex: 1300,
+    overflowY: 'auto', // Добавляем скролл при необходимости
+  }}
+>
       <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>Создать bib-файл</Typography>
       
       {/* Добавленный Alert для отображения ошибок */}
@@ -1237,21 +1329,24 @@ const PersonalAccount = () => {
         >
           <Fade in={editModalOpen}>
             <Paper
-              sx={{
-                width: { xs: '80%', sm: '80%', md: '80%' },
-                p: 3,
-                mx: "auto",
-                mt: 5,
-                borderRadius: '15px',
-                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-                background: 'background.paper',
-                height: 'auto',
-                maxHeight: '80vh',
-                display: 'flex',
-                flexDirection: 'column',
-                zIndex: 1300,
-              }}
-            >
+  sx={{
+    width: { xs: '90%', sm: '80%', md: '70%' }, // Немного уменьшаем ширину на больших экранах
+    p: 3,
+    position: 'fixed', // Фиксированное позиционирование
+    top: '50%',       // Центрирование по вертикали
+    left: '50%',      // Центрирование по горизонтали
+    transform: 'translate(-50%, -50%)', // Точное центрирование
+    borderRadius: '15px',
+    boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+    background: 'background.paper',
+    height: '90vh',   // Занимаем 90% высоты viewport
+    maxHeight: 'none', // Убираем ограничение максимальной высоты
+    display: 'flex',
+    flexDirection: 'column',
+    zIndex: 1300,
+    overflowY: 'auto', // Добавляем скролл при необходимости
+  }}
+>
               <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
                 Редактировать bib-файл
               </Typography>
@@ -1381,7 +1476,7 @@ const PersonalAccount = () => {
                 boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
                 background: 'background.paper',
                 height: 'auto',
-                maxHeight: '80vh',
+                maxHeight: '91vh',
                 display: 'flex',
                 flexDirection: 'column',
                 zIndex: 1300,
