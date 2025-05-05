@@ -346,52 +346,82 @@ const PersonalAccount = () => {
   };
 
   const saveBibFiles = async () => {
-    // Фильтруем пустые записи (где все поля пустые)
-    const nonEmptySources = sources.filter(source => {
-      return Object.values(source.fields).some(value => value.trim() !== '');
-    });
+    // Фильтруем пустые записи
+    const nonEmptySources = sources.filter(source => 
+      Object.values(source.fields).some(value => value.trim() !== '')
+    );
   
-    // Если все записи пустые
     if (nonEmptySources.length === 0) {
       setError("Создаваемый файл не может быть пустым");
       return;
     }
   
-    // Если есть как пустые, так и непустые записи
-    const hasEmptySources = nonEmptySources.length < sources.length;
-    
-    const formattedSources = nonEmptySources.map((source, index) => ({
-      ...source.fields,
-      ID: `source${index + 1}`,
-      type: source.type,
-    }));
+    // Проверка года (но не блокируем сохранение)
+    const yearErrors = nonEmptySources.filter(source => 
+      source.fields.year && (isNaN(source.fields.year) || parseInt(source.fields.year) > currentYear
+    ));
+  
+    // Проверка обязательных полей (только для предупреждения)
+    const missingFieldsWarnings = nonEmptySources.map((source, idx) => {
+      const requiredFields = getRequiredFieldsForType(source.type || 'misc');
+      const missing = requiredFields.filter(field => !source.fields[field] || source.fields[field].trim() === '');
+      return missing.length > 0 
+        ? `Источник ${idx + 1}: отсутствуют обязательные поля (${missing.join(', ')})`
+        : null;
+    }).filter(Boolean);
   
     try {
-      if (isGuest) {
-        await guestAxios.post('/api/guest/save-bib', { sessionId, files: formattedSources });
+      // Форматируем источники
+      const formattedSources = nonEmptySources.map((source, index) => ({
+        ...source.fields,
+        ID: `source${index + 1}`,
+        type: source.type,
+      }));
+  
+      // Сохраняем файл
+      const response = await (isGuest ? guestAxios : authAxios).post(
+        isGuest ? '/api/guest/save-bib' : '/api/save-bib',
+        isGuest ? { sessionId, files: formattedSources } : { files: formattedSources }
+      );
+  
+      // Обработка результата
+      if (response.data?.errors || yearErrors.length > 0 || missingFieldsWarnings.length > 0) {
+        const allWarnings = [
+          ...(response.data?.errors || []),
+          ...yearErrors.map(() => `Проверьте год публикации (не может быть больше ${currentYear})`),
+          ...missingFieldsWarnings
+        ];
+  
+        setSnackbar({
+          open: true,
+          message: "Файл сохранён, но содержит предупреждения",
+          severity: "warning"
+        });
+  
+        // Парсим ошибки для подсветки
+        const errorLines = {};
+        (response.data?.errors || []).forEach(error => {
+          const match = error.match(/\(строка (\d+)\)$/);
+          if (match) errorLines[parseInt(match[1]) - 1] = error;
+        });
+  
+        setEditedLines(errorLines);
       } else {
-        await authAxios.post('/api/save-bib', { files: formattedSources });
+        setSnackbar({
+          open: true,
+          message: "Файл успешно сохранён",
+          severity: "success"
+        });
       }
-      
+  
+      // Закрываем модалку и обновляем список
       setModalOpen(false);
       setSources([]);
-      setCurrentSourceIndex(0);
-      setHasSource(false);
       fetchFiles();
-      
-      // Показываем сообщение о пустых записях, если они были
-      if (hasEmptySources) {
-        setError("Некоторые записи оказались пустыми и не были сохранены");
-      }
+  
     } catch (error) {
-      if (error.response?.status === 401 && !isGuest) {
-        await refreshToken();
-        saveBibFiles();
-      } else {
-        const errorDetail = error.response?.data?.detail || error.message;
-        console.error("Error saving bib files:", error.response?.data || error);
-        setError(`Не удалось сохранить файл: ${typeof errorDetail === 'object' ? JSON.stringify(errorDetail) : errorDetail}`);
-      }
+      console.error("Ошибка сохранения:", error);
+      setError(`Ошибка сохранения: ${error.response?.data?.detail || error.message}`);
     }
   };
 
@@ -530,16 +560,6 @@ const PersonalAccount = () => {
   };
   
   const handleSaveEditedFile = async () => {
-    const yearErrors = sources.filter(source => {
-      const yearValue = source.fields.year;
-      return yearValue && (isNaN(yearValue) || parseInt(yearValue) > currentYear);
-    });
-  
-    if (yearErrors.length > 0) {
-      setError(`Исправьте год публикации (не может быть больше ${currentYear})`);
-      return;
-    }
-  
     // Фильтруем пустые записи (где все поля пустые)
     const nonEmptySources = sources.filter(source => {
       return Object.values(source.fields).some(value => value.trim() !== '');
@@ -591,26 +611,40 @@ const PersonalAccount = () => {
         : { file_id: editFileId, content };
       
       // Сохраняем файл в любом случае
-      await (isGuest ? guestAxios : authAxios).post(endpoint, payload, { withCredentials: true });
+      const saveResponse = await (isGuest ? guestAxios : authAxios).post(endpoint, payload, { withCredentials: true });
+  
+      // Проверяем год только для показа предупреждения
+      const yearErrors = sources.filter(source => {
+        const yearValue = source.fields.year;
+        return yearValue && (isNaN(yearValue) || parseInt(yearValue) > currentYear);
+      });
   
       // Запускаем повторную проверку файла, но не блокируем сохранение при ошибках
       try {
         const revalidateResponse = await revalidateFile(editFileId);
-        if (revalidateResponse.errors) {
-          // Парсим ошибки для отображения пользователю
-          const { sourceLines } = parseBibFile(content);
-          const errorLines = {};
-          let errorLinesArray = [];
+        
+        // Формируем список всех предупреждений (включая год)
+        const allWarnings = [];
+        
+        if (yearErrors.length > 0) {
+          allWarnings.push(`Проверьте год публикации (не может быть больше ${currentYear})`);
+        }
   
+        if (revalidateResponse.errors) {
+          // Добавляем ошибки валидации
           if (typeof revalidateResponse.errors === 'string') {
-            errorLinesArray = revalidateResponse.errors.split('\n').filter(line => line.trim());
+            allWarnings.push(...revalidateResponse.errors.split('\n').filter(line => line.trim()));
           } else if (Array.isArray(revalidateResponse.errors)) {
-            errorLinesArray = revalidateResponse.errors;
+            allWarnings.push(...revalidateResponse.errors);
           } else if (typeof revalidateResponse.errors === 'object') {
-            errorLinesArray = Object.values(revalidateResponse.errors);
+            allWarnings.push(...Object.values(revalidateResponse.errors));
           }
   
-          errorLinesArray.forEach(error => {
+          // Парсим ошибки для подсветки
+          const { sourceLines } = parseBibFile(content);
+          const errorLines = {};
+          
+          allWarnings.forEach(error => {
             const match = error.match(/\(строка (\d+)\)$/);
             if (match) {
               const lineNumber = parseInt(match[1], 10) - 1;
@@ -631,9 +665,12 @@ const PersonalAccount = () => {
           });
   
           setEditedLines(errorLines);
+        }
+  
+        if (allWarnings.length > 0) {
           setSnackbar({
             open: true,
-            message: "Файл сохранён, но содержит ошибки",
+            message: "Файл сохранён, но содержит предупреждения",
             severity: "warning"
           });
         } else {
@@ -847,7 +884,7 @@ const PersonalAccount = () => {
             {/* Название сайта */}
             <Typography variant="h4" sx={{
               fontWeight: 'bold',
-              fontSize: { xs: '1.5rem', sm: '2rem' },
+              fontSize: { xs: '1rem', sm: '2rem' },
               color: 'text.primary',
               minWidth: 0,
               overflow: 'hidden',
@@ -855,7 +892,7 @@ const PersonalAccount = () => {
               whiteSpace: 'nowrap',
               flexShrink: 1
             }}>
-              BIBCHECK
+              BIBCHECK.RU
             </Typography>
 
             {/* Блок с кнопками */}
@@ -922,59 +959,94 @@ const PersonalAccount = () => {
             </Box>
           </Box>
 
-          {/* Вторая строка: Поле поиска и другие элементы */}
-          <Box display="flex" gap={2} flexWrap="wrap" sx={{ width: '100%' }}>
-            {/* Поле поиска с гарантированным пространством */}
-            <Box flex={1} sx={{
-              minWidth: { xs: '100%', sm: '300px' }, // Минимальная ширина
-              maxWidth: '100%'
-            }}>
-              <TextField
-                fullWidth
-                placeholder="Поиск"
-                variant="outlined"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
-                  endAdornment: searchText && (
-                    <InputAdornment position="end">
-                      <IconButton onClick={handleClearSearch} size="small">
-                        <ClearIcon />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Box>
+     {/* Вторая строка: Поле поиска и кнопки */}
+<Box 
+  display="flex" 
+  gap={2}
+  flexWrap="wrap"
+  sx={{ 
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  }}
+>
+  {/* Поле поиска - левая часть */}
+  <Box 
+    sx={{
+      flexGrow: 1,
+      minWidth: '250px',
+      maxWidth: { xs: '100%', md: '800px' },
+    }}
+  >
+    <TextField
+      fullWidth
+      placeholder="Поиск"
+      variant="outlined"
+      value={searchText}
+      onChange={(e) => setSearchText(e.target.value)}
+      InputProps={{
+        startAdornment: (
+          <InputAdornment position="start">
+            <SearchIcon />
+          </InputAdornment>
+        ),
+        endAdornment: searchText && (
+          <InputAdornment position="end">
+            <IconButton onClick={handleClearSearch} size="small">
+              <ClearIcon />
+            </IconButton>
+          </InputAdornment>
+        ),
+      }}
+      sx={{
+        '& .MuiOutlinedInput-root': {
+          height: '50px' // Фиксированная высота для поля поиска
+        }
+      }}
+    />
+  </Box>
 
-            {/* Остальные кнопки */}
-            <Box display="flex" gap={2} sx={{
-              flexShrink: 0,
-              width: { xs: '100%', sm: 'auto' }
-            }}>
-              <Button
-                variant="contained"
-                onClick={handleCreateBibFile}
-                sx={{
-                  whiteSpace: 'nowrap',
-                  flex: { xs: 1, sm: 'none' }
-                }}
-              >
-                Создать bib-файл
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => document.getElementById('upload-bib-file').click()}
-                sx={{
-                  whiteSpace: 'nowrap',
-                  flex: { xs: 1, sm: 'none' }
-                }}
-              >
-                Загрузить bib-файл
-              </Button>
-            </Box>
-          </Box>
+  {/* Группа кнопок - правая часть */}
+  <Box 
+    display="flex" 
+    gap={2}
+    sx={{
+      flexShrink: 0,
+      width: { xs: '100%', sm: 'auto' },
+      justifyContent: { xs: 'center'},
+      marginTop: { xs: 0, sm: 0 },
+    }}
+  >
+    <Box>
+    <Button
+      variant="contained"
+      size="medium"
+      onClick={handleCreateBibFile}
+      sx={{
+        minWidth: '160px',
+        height: '50px', // Такая же высота как у поля поиска
+        px: 3,
+      }}
+    >
+      Создать bib-файл
+    </Button>
+    </Box>
+    <Box>
+    <Button
+      variant="outlined"
+      size="medium"
+      onClick={() => document.getElementById('upload-bib-file').click()}
+      sx={{
+        minWidth: '160px',
+        height: '50px', // Такая же высота как у поля поиска
+        px: 3,
+      }}
+    >
+      Загрузить bib-файл
+    </Button>
+    </Box>
+  </Box>
+</Box>
         </Box>
         </Box>
 
