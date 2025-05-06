@@ -259,43 +259,36 @@ const PersonalAccount = () => {
     const lines = content ? content.split('\n') : [];
     const sources = [];
     const sourceLines = [];
-    let currentSource = { type: '', fields: {} };
-    let inEntry = false;
-
+    let currentSource = { type: '', fields: {}, lineStart: 0 };
+  
     lines.forEach((line, idx) => {
       line = line.trim();
       if (line.startsWith('@')) {
-        if (inEntry && currentSource.type) {
-          sources.push({ ...currentSource });
+        if (currentSource.type) {
+          sources.push({ ...currentSource, lineEnd: idx - 1 });
         }
-        const match = line.match(/@(\w+)\s*{([^,]+),/);
+        const match = line.match(/@(\w+)\s*{([^,]+),?/);
         if (match) {
-          currentSource = { type: match[1].toLowerCase(), fields: {} };
-          inEntry = true;
+          currentSource = { 
+            type: match[1].toLowerCase(), 
+            fields: {},
+            lineStart: idx,
+            id: match[2].trim()
+          };
           sourceLines.push(idx);
         }
-      } else if (inEntry && line.includes('=')) {
+      } else if (currentSource.type && line.includes('=')) {
         const [key, value] = line.split('=').map(s => s.trim());
         if (key && value) {
-          let cleanedValue = value.replace(/^\{/, '').replace(/[,}].*$/, '').trim();
-          currentSource.fields[key] = cleanedValue;
+          currentSource.fields[key] = value.replace(/^\{/, '').replace(/[,}].*$/, '').trim();
         }
-      } else if (line.includes('}') && inEntry) {
-        if (currentSource.type) {
-          sources.push({ ...currentSource });
-        }
-        inEntry = false;
+      } else if (line.includes('}') && currentSource.type) {
+        sources.push({ ...currentSource, lineEnd: idx });
+        currentSource = { type: '', fields: {} };
       }
     });
-    if (inEntry && currentSource.type) {
-      sources.push({ ...currentSource });
-    }
-
-    if (sourceLines.length === 0 && sources.length > 0) {
-      sourceLines.push(0);
-    }
-
-    return { sources: sources.length > 0 ? sources : [{ type: '', fields: {} }], sourceLines };
+  
+    return { sources, sourceLines };
   };
 
   const handleTypeChange = (index, type, isEditing = false) => {
@@ -711,7 +704,6 @@ const PersonalAccount = () => {
     }
   };
 
-
   const handleShowErrors = async (file) => {
     try {
       const endpoint = isGuest
@@ -719,28 +711,43 @@ const PersonalAccount = () => {
         : `/api/get-bib-content?file_id=${file.id}`;
       const response = await (isGuest ? guestAxios : authAxios).get(endpoint);
       const content = response.data.content;
+      const { sources } = parseBibFile(content);
       
       let errors = {};
-      
-      if (file.errors) {
-        // Разделяем ошибки по переносам строк
-        const errorsArray = file.errors.split('\n').filter(e => e.trim());
-        
-        errorsArray.forEach(error => {
-          const match = error.match(/\(строка (\d+)\)$/);
-          if (match) {
-            const lineNumber = parseInt(match[1], 10) - 1;
-            errors[lineNumber] = error.trim();
+      let modifiedContent = content.split('\n');
+  
+      if (file.errors && typeof file.errors === 'string') {
+        file.errors.split('\n').filter(line => line.trim()).forEach(error => {
+          // Сопоставляем ошибки с конкретными записями
+          const sourceMatch = error.match(/записи '([^']+)'/);
+          if (sourceMatch) {
+            const sourceId = sourceMatch[1];
+            const source = sources.find(s => s.id === sourceId);
+            if (source) {
+              // Добавляем ошибку в начало записи
+              const errorLine = source.lineStart;
+              modifiedContent[errorLine] = modifiedContent[errorLine].replace(
+                /(@\w+\{[^,]+,?)/,
+                `$1 ${error.trim()}`
+              );
+              errors[errorLine] = error.trim();
+            }
           }
         });
       }
-      
+  
       setEditedLines(errors);
-      setEditContent(content);
+      setEditContent(modifiedContent.join('\n'));
       setErrorFileId(file.id);
       setErrorModalOpen(true);
     } catch (error) {
-      // Обработка ошибок
+      if (error.response?.status === 401 && !isGuest) {
+        await refreshToken();
+        handleShowErrors(file);
+      } else {
+        console.error("Error fetching file content:", error.response?.data || error.message);
+        setError("Не удалось загрузить содержимое файла: " + (error.response?.data?.detail || error.message));
+      }
     }
   };
 
@@ -1557,148 +1564,70 @@ const PersonalAccount = () => {
           </Fade>
         </Modal>
 
-        <Modal
-  open={errorModalOpen}
-  onClose={() => setErrorModalOpen(false)}
-  closeAfterTransition
-  slots={{ backdrop: Backdrop }}
-  slotProps={{
-    backdrop: {
-      timeout: 500,
-      sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
-    },
-  }}
->
-  <Fade in={errorModalOpen}>
-    <Paper
-      sx={{
-        width: { xs: '90%', sm: '80%', md: '70%' },
-        p: 3,
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        borderRadius: '15px',
-        boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-        background: 'background.paper',
-        maxHeight: '90vh',
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 1300,
-        overflowY: 'auto',
-      }}
-    >
-      <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
-        Просмотр ошибок
-      </Typography>
-      
-      {/* Секция с ошибками */}
-      <Box sx={{ mb: 3 }}>
-  <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-    Обнаруженные ошибки:
-  </Typography>
-  
-  {Object.keys(editedLines).length > 0 ? (
-    <Box sx={{ 
-      backgroundColor: 'error.dark',
-      p: 2,
-      borderRadius: '4px',
-      color: 'common.white'
-    }}>
-      {Object.entries(editedLines).map(([lineNumber, error], index) => (
-        <Box 
-          key={index}
-          sx={{
-            mb: index !== Object.keys(editedLines).length - 1 ? 2 : 0,
-            display: 'flex',
-            alignItems: 'flex-start'
-          }}
-        >
-          <ErrorIcon sx={{ mr: 1, mt: '2px', color: 'common.white' }} />
-          <Typography variant="body2" sx={{ color: 'common.white' }}>
-            {error}
-          </Typography>
+        <Modal open={errorModalOpen} onClose={() => setErrorModalOpen(false)}>
+  <Box sx={{
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: '80%',
+    maxHeight: '80vh',
+    bgcolor: 'background.paper',
+    boxShadow: 24,
+    p: 4,
+    overflow: 'auto'
+  }}>
+    <Typography variant="h6" gutterBottom>
+      Ошибки в файле: {files.find(f => f.id === errorFileId)?.name_file}
+    </Typography>
+    
+    {Object.keys(editedLines).length > 0 && (
+      <>
+        <Typography variant="subtitle1" color="error" gutterBottom>
+          Обнаруженные ошибки:
+        </Typography>
+        <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+          {Object.values(editedLines).map((error, i) => (
+            <Typography key={i} component="li" color="error">
+              {error}
+            </Typography>
+          ))}
         </Box>
-      ))}
-    </Box>
-  ) : (
-    <Box sx={{ 
-      backgroundColor: 'success.light', 
+      </>
+    )}
+
+    <Typography variant="subtitle1" gutterBottom>
+      Содержимое файла:
+    </Typography>
+    <Paper sx={{ 
       p: 2, 
-      borderRadius: '4px'
+      backgroundColor: isDarkMode ? 'grey.900' : 'grey.50',
+      fontFamily: 'monospace',
+      whiteSpace: 'pre-wrap'
     }}>
-      <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-        <CheckCircleIcon color="success" sx={{ mr: 1, mt: '2px' }} />
-        <Typography variant="body2" sx={{ color: 'success.main' }}>
-          Ошибок не обнаружено
-        </Typography>
-      </Box>
-    </Box>
-  )}
-</Box>
-
-      {/* Секция с содержимым файла */}
-      <Box sx={{ flex: 1, overflowY: 'auto' }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
-          Содержимое файла:
-        </Typography>
-        
-        <Paper sx={{ 
-          p: 2, 
-          backgroundColor: 'background.default',
-          fontFamily: 'monospace',
-          whiteSpace: 'pre-wrap',
-          position: 'relative'
-        }}>
-          {editContent.split('\n').map((line, index) => {
-            const hasError = Object.keys(editedLines).some(lineNum => 
-              parseInt(lineNum) === index
-            );
-            
-            return (
-              <Box 
-                key={index} 
-                sx={{ 
-                  display: 'flex',
-                  backgroundColor: hasError ? 'rgba(255, 0, 0, 0.1)' : 'transparent',
-                  borderLeft: hasError ? '3px solid' : 'none',
-                  borderColor: 'error.main',
-                  pl: hasError ? 1 : 0,
-                  mb: 0.5
-                }}
-              >
-                <Typography 
-                  variant="body2" 
-                  component="span"
-                  sx={{ 
-                    color: hasError ? 'error.main' : 'text.primary',
-                    fontFamily: 'monospace',
-                    whiteSpace: 'pre-wrap'
-                  }}
-                >
-                  {line}
-                </Typography>
-              </Box>
-            );
-          })}
-        </Paper>
-      </Box>
-
-      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-        <Button
-          variant="contained"
-          onClick={() => setErrorModalOpen(false)}
+      {editContent.split('\n').map((line, i) => (
+        <Typography 
+          key={i} 
+          component="div"
           sx={{ 
-            backgroundColor: 'primary.main', 
-            '&:hover': { backgroundColor: 'primary.dark' },
-            minWidth: '120px'
+            color: editedLines[i] ? 'error.main' : 'text.primary',
+            fontWeight: editedLines[i] ? 'bold' : 'normal'
           }}
         >
-          Закрыть
-        </Button>
-      </Box>
+          {line}
+        </Typography>
+      ))}
     </Paper>
-  </Fade>
+
+    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+      <Button 
+        variant="contained" 
+        onClick={() => setErrorModalOpen(false)}
+      >
+        Закрыть
+      </Button>
+    </Box>
+  </Box>
 </Modal>
       </Container>
       <input
