@@ -10,6 +10,7 @@ import {
   AccordionDetails,
   Snackbar,
 } from "@mui/material";
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
@@ -456,10 +457,37 @@ const PersonalAccount = () => {
       const response = await (isGuest ? guestAxios : authAxios).get(endpoint);
       const content = response.data.content;
       const { sources: parsedSources, sourceLines } = parseBibFile(content);
+     
       let errorLines = {};
+    if (file.errors) {
+      // Обрабатываем ошибки как массив
+      const errorsArray = Array.isArray(file.errors) ? file.errors : [file.errors];
+      
+      errorsArray.forEach(error => {
+        if (typeof error === 'string') {
+          const match = error.match(/\(строка (\d+)\)$/);
+          if (match) {
+            const lineNumber = parseInt(match[1], 10) - 1;
+            let sourceIndex = -1;
+            
+            if (sourceLines && sourceLines.length > 0) {
+              sourceIndex = sourceLines.findIndex((startLine, idx) => {
+                const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
+                return lineNumber >= startLine && lineNumber < nextStartLine;
+              });
+            }
+            
+            if (sourceIndex === -1 && parsedSources.length > 0) sourceIndex = 0;
+            if (sourceIndex !== -1 && sourceIndex < parsedSources.length) {
+              errorLines[sourceIndex] = error.trim();
+            }
+          }
+        }
+      });
+    }
   
       // Добавляем обязательные поля для каждого источника
-      const sourcesWithRequiredFields = parsedSources.map(source => {
+      const sourcesWithRequiredFields = parsedSources.map((source, index) => {
         const requiredFields = getRequiredFieldsForType(source.type || 'misc');
         const fieldsWithRequired = { ...source.fields };
         
@@ -472,40 +500,11 @@ const PersonalAccount = () => {
   
         return {
           ...source,
-          fields: fieldsWithRequired
+          fields: fieldsWithRequired,
+          // Сохраняем ошибки для этого источника
+          errors: errorLines[index] || []
         };
       });
-  
-      if (!sourceLines || sourceLines.length === 0) {
-        if (file.errors && typeof file.errors === 'string') {
-          const errorLinesArray = file.errors.split('\n').filter(line => line.trim());
-          errorLinesArray.forEach(error => {
-            const match = error.match(/\(строка (\d+)\)$/);
-            if (match) {
-              errorLines[0] = error.trim();
-            }
-          });
-        }
-      } else if (file.errors && typeof file.errors === 'string') {
-        const errorLinesArray = file.errors.split('\n').filter(line => line.trim());
-        errorLinesArray.forEach(error => {
-          const match = error.match(/\(строка (\d+)\)$/);
-          if (match) {
-            const lineNumber = parseInt(match[1], 10) - 1;
-            let sourceIndex = -1;
-            if (sourceLines && sourceLines.length > 0) {
-              sourceIndex = sourceLines.findIndex((startLine, idx) => {
-                const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
-                return lineNumber >= startLine && lineNumber < nextStartLine;
-              });
-            }
-            if (sourceIndex === -1 && parsedSources.length > 0) sourceIndex = 0;
-            if (sourceIndex !== -1 && sourceIndex < parsedSources.length) {
-              errorLines[sourceIndex] = error.trim();
-            }
-          }
-        });
-      }
   
       setSources(sourcesWithRequiredFields);
       setCurrentSourceIndex(0);
@@ -720,11 +719,14 @@ const PersonalAccount = () => {
         : `/api/get-bib-content?file_id=${file.id}`;
       const response = await (isGuest ? guestAxios : authAxios).get(endpoint);
       const content = response.data.content;
-      const lines = content.split('\n');
+      
       let errors = {};
-      if (file.errors && typeof file.errors === 'string') {
-        const errorLinesArray = file.errors.split('\n').filter(line => line.trim());
-        errorLinesArray.forEach(error => {
+      
+      if (file.errors) {
+        // Разделяем ошибки по переносам строк
+        const errorsArray = file.errors.split('\n').filter(e => e.trim());
+        
+        errorsArray.forEach(error => {
           const match = error.match(/\(строка (\d+)\)$/);
           if (match) {
             const lineNumber = parseInt(match[1], 10) - 1;
@@ -732,18 +734,13 @@ const PersonalAccount = () => {
           }
         });
       }
+      
       setEditedLines(errors);
-      setEditContent(lines.join('\n'));
+      setEditContent(content);
       setErrorFileId(file.id);
       setErrorModalOpen(true);
     } catch (error) {
-      if (error.response?.status === 401 && !isGuest) {
-        await refreshToken();
-        handleShowErrors(file);
-      } else {
-        console.error("Error fetching file content:", error.response?.data || error.message);
-        setError("Не удалось загрузить содержимое файла: " + (error.response?.data?.detail || error.message));
-      }
+      // Обработка ошибок
     }
   };
 
@@ -1561,100 +1558,148 @@ const PersonalAccount = () => {
         </Modal>
 
         <Modal
-          open={errorModalOpen}
-          onClose={() => setErrorModalOpen(false)}
-          closeAfterTransition
-          slots={{ backdrop: Backdrop }}
-          slotProps={{
-            backdrop: {
-              timeout: 500,
-              sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
-            },
+  open={errorModalOpen}
+  onClose={() => setErrorModalOpen(false)}
+  closeAfterTransition
+  slots={{ backdrop: Backdrop }}
+  slotProps={{
+    backdrop: {
+      timeout: 500,
+      sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
+    },
+  }}
+>
+  <Fade in={errorModalOpen}>
+    <Paper
+      sx={{
+        width: { xs: '90%', sm: '80%', md: '70%' },
+        p: 3,
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        borderRadius: '15px',
+        boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+        background: 'background.paper',
+        maxHeight: '90vh',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 1300,
+        overflowY: 'auto',
+      }}
+    >
+      <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
+        Просмотр ошибок
+      </Typography>
+      
+      {/* Секция с ошибками */}
+      <Box sx={{ mb: 3 }}>
+  <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+    Обнаруженные ошибки:
+  </Typography>
+  
+  {Object.keys(editedLines).length > 0 ? (
+    <Box sx={{ 
+      backgroundColor: 'error.dark',
+      p: 2,
+      borderRadius: '4px',
+      color: 'common.white'
+    }}>
+      {Object.entries(editedLines).map(([lineNumber, error], index) => (
+        <Box 
+          key={index}
+          sx={{
+            mb: index !== Object.keys(editedLines).length - 1 ? 2 : 0,
+            display: 'flex',
+            alignItems: 'flex-start'
           }}
         >
-          <Fade in={errorModalOpen}>
-            <Paper
-              sx={{
-                width: { xs: '80%', sm: '80%', md: '80%' },
-                p: 3,
-                mx: "auto",
-                mt: 5,
-                borderRadius: '15px',
-                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-                background: 'background.paper',
-                height: 'auto',
-                maxHeight: '91vh',
-                display: 'flex',
-                flexDirection: 'column',
-                zIndex: 1300,
-              }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
-                Просмотр ошибок
-              </Typography>
-              <Box sx={{ flex: 1, overflowY: 'auto', mb: 2, width: '100%' }}>
-                {Object.entries(editedLines).length > 0 ? (
-                  <>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'error.main' }}>
-                      Обнаруженные ошибки:
-                    </Typography>
-                    {Object.entries(editedLines).map(([lineNumber, error], index) => (
-                      <Typography
-                        key={index}
-                        sx={{
-                          mb: 1,
-                          color: 'error.main',
-                        }}
-                      >
-                        {error}
-                      </Typography>
-                    ))}
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 2, mb: 1, color: 'text.primary' }}>
-                      Содержимое файла:
-                    </Typography>
-                  </>
-                ) : (
-                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'text.secondary' }}>
-                    Ошибок не обнаружено
-                  </Typography>
-                )}
-                {editContent.split('\n').reduce((acc, line, index) => {
-                  if (line.trim().startsWith('@')) {
-                    acc.push({ startIndex: index, lines: [line], hasError: false });
-                  } else if (acc.length > 0) {
-                    acc[acc.length - 1].lines.push(line);
-                  }
-                  return acc;
-                }, []).map((entry, entryIndex) => {
-                  const errorLineNumber = Object.keys(editedLines).find(lineNum =>
-                    parseInt(lineNum) >= entry.startIndex && parseInt(lineNum) < (entry.startIndex + entry.lines.length)
-                  );
-                  const hasError = !!errorLineNumber;
-                  return entry.lines.map((line, lineIndex) => (
-                    <Typography
-                      key={`${entryIndex}-${lineIndex}`}
-                      sx={{
-                        mb: 1,
-                        textDecoration: hasError ? 'underline red' : 'none',
-                        color: hasError ? 'error.main' : 'text.primary',
-                      }}
-                    >
-                      {line}
-                    </Typography>
-                  ));
-                })}
-              </Box>
-              <Button
-                fullWidth
-                variant="contained"
-                onClick={() => setErrorModalOpen(false)}
-                sx={{ backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' }, width: '100%' }}
+          <ErrorIcon sx={{ mr: 1, mt: '2px', color: 'common.white' }} />
+          <Typography variant="body2" sx={{ color: 'common.white' }}>
+            {error}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  ) : (
+    <Box sx={{ 
+      backgroundColor: 'success.light', 
+      p: 2, 
+      borderRadius: '4px'
+    }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+        <CheckCircleIcon color="success" sx={{ mr: 1, mt: '2px' }} />
+        <Typography variant="body2" sx={{ color: 'success.main' }}>
+          Ошибок не обнаружено
+        </Typography>
+      </Box>
+    </Box>
+  )}
+</Box>
+
+      {/* Секция с содержимым файла */}
+      <Box sx={{ flex: 1, overflowY: 'auto' }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+          Содержимое файла:
+        </Typography>
+        
+        <Paper sx={{ 
+          p: 2, 
+          backgroundColor: 'background.default',
+          fontFamily: 'monospace',
+          whiteSpace: 'pre-wrap',
+          position: 'relative'
+        }}>
+          {editContent.split('\n').map((line, index) => {
+            const hasError = Object.keys(editedLines).some(lineNum => 
+              parseInt(lineNum) === index
+            );
+            
+            return (
+              <Box 
+                key={index} 
+                sx={{ 
+                  display: 'flex',
+                  backgroundColor: hasError ? 'rgba(255, 0, 0, 0.1)' : 'transparent',
+                  borderLeft: hasError ? '3px solid' : 'none',
+                  borderColor: 'error.main',
+                  pl: hasError ? 1 : 0,
+                  mb: 0.5
+                }}
               >
-                Закрыть
-              </Button>
-            </Paper>
-          </Fade>
-        </Modal>
+                <Typography 
+                  variant="body2" 
+                  component="span"
+                  sx={{ 
+                    color: hasError ? 'error.main' : 'text.primary',
+                    fontFamily: 'monospace',
+                    whiteSpace: 'pre-wrap'
+                  }}
+                >
+                  {line}
+                </Typography>
+              </Box>
+            );
+          })}
+        </Paper>
+      </Box>
+
+      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+        <Button
+          variant="contained"
+          onClick={() => setErrorModalOpen(false)}
+          sx={{ 
+            backgroundColor: 'primary.main', 
+            '&:hover': { backgroundColor: 'primary.dark' },
+            minWidth: '120px'
+          }}
+        >
+          Закрыть
+        </Button>
+      </Box>
+    </Paper>
+  </Fade>
+</Modal>
       </Container>
       <input
   id="upload-bib-file"

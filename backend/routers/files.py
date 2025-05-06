@@ -451,3 +451,97 @@ async def get_guest_bib_content(file_id: int = Query(...), sessionId: str = Quer
         content = f.read()
     
     return {"content": content}
+
+
+@router.post("/api/revalidate-file")
+async def revalidate_file(
+    file_id: int = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        # Получаем запись используя исходные имена полей
+        exam = db.query(Examination).filter(Examination.id_examination == file_id).first()
+        if not exam:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Проверяем права доступа (используем id_user вместо user_id)
+        if exam.id_user != current_user.id_user:
+            raise HTTPException(status_code=403, detail="Not authorized to access this file")
+        
+        # Проверяем наличие файла
+        file_path = exam.download_link_edited if exam.download_link_edited else exam.download_link_source
+        if not file_path or not Path(file_path).exists():
+            raise HTTPException(status_code=404, detail="File not found on server")
+        
+        # Читаем и проверяем файл
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        validation_result = validate_bibtex_file(content)
+        
+        # Обновляем запись (сохраняя исходные имена полей)
+        exam.number_of_errors = len(validation_result.get("errors", []))
+        exam.course_compliance = int(validation_result.get("course_compliance", 0))
+        exam.errors = "\n".join(validation_result.get("errors", [])) or None
+        exam.last_active = datetime.utcnow()
+        
+        db.commit()
+        
+        return {
+            "id": exam.id_examination,
+            "name_file": exam.name_file,
+            "number_of_errors": exam.number_of_errors,
+            "course_compliance": str(exam.course_compliance),  # Возвращаем как строку
+            "errors": exam.errors
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error in revalidate-file: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/guest/revalidate-file")
+async def guest_revalidate_file(
+    file_id: int = Form(...),
+    sessionId: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    try:
+        exam = db.query(Examination).filter(
+            Examination.id_examination == file_id,
+            Examination.session_id == sessionId
+        ).first()
+        
+        if not exam:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        file_path = exam.download_link_edited or exam.download_link_source
+        if not file_path or not Path(file_path).exists():
+            raise HTTPException(status_code=404, detail="File not found on server")
+        
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        validation_result = validate_bibtex_file(content)
+        
+        exam.number_of_errors = len(validation_result.get("errors", []))
+        exam.course_compliance = int(validation_result.get("course_compliance", 0))
+        exam.errors = "\n".join(validation_result.get("errors", [])) or None
+        exam.last_active = datetime.utcnow()
+        
+        db.commit()
+        
+        return {
+            "id": exam.id_examination,
+            "name_file": exam.name_file,
+            "number_of_errors": exam.number_of_errors,
+            "course_compliance": str(exam.course_compliance),
+            "errors": exam.errors
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Guest revalidation error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

@@ -67,8 +67,8 @@ def detect_language(text):
 #Выдает соответствие курсу
 def get_course(total_count, foreign_language_count, articles_after_2010_count, literature_21_century_count):
     if total_count > 30 and foreign_language_count > 6 and articles_after_2010_count > 6 and literature_21_century_count > 20:
-        return '5'
-    if total_count >= 25 and foreign_language_count > 5 and articles_after_2010_count > 6 and literature_21_century_count > 20:
+        return '6'
+    if total_count > 25 and foreign_language_count > 5 and articles_after_2010_count > 6 and literature_21_century_count > 20:
         return '4'
     if total_count > 20 and foreign_language_count > 4 and articles_after_2010_count > 4 and literature_21_century_count > 14:
         return '3'
@@ -127,7 +127,6 @@ def validate_bibtex_file(file_contents: str):
     current_year = datetime.now().year 
 
     for entry in entries:
-
         entry_id = entry["ID"]
         if entry_id in seen_ids:
             errors.append(f"Дублирующийся ID '{entry_id}' (строка {entry['line_number']})")
@@ -141,9 +140,10 @@ def validate_bibtex_file(file_contents: str):
         entry_fields = [field.lower() for field in entry["fields"].keys()]
         line_number = entry["line_number"]
 
-        missing_fields = [field for field in required_fields if field not in entry_fields]
-        if missing_fields:
-            errors.append(f"Отсутствуют обязательные поля {', '.join(missing_fields)} в записи '{entry['ID']}' типа '{entry_type}' (строка {line_number})")
+        # Изменено: каждая ошибка для каждого пропущенного поля добавляется отдельно
+        for field in required_fields:
+            if field not in entry_fields:
+                errors.append(f"Отсутствует обязательное поле '{field}' в записи '{entry['ID']}' типа '{entry_type}' (строка {line_number})")
 
         #Проверка года, больше ли он текущего
         year_str = entry["fields"].get("year", "")
