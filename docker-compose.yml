@@ -1,19 +1,36 @@
 version: '3.8'
 services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      # - ./frontend/dist:/usr/share/nginx/html
+      # - ./backend/uploads:/app/uploads
+      # - ./nginx.conf:/etc/nginx/conf.d/default.conf
+
+      # - ./backend/uploads:/app/uploads
+      # - ./frontend/dist:/app/frontend_dist
+
+      - ./frontend/dist:/usr/share/nginx/html  # Статика фронтенда
+      - ./backend/uploads:/app/uploads  # Загрузки
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf  # Конфигурация
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:  # Добавь это
-      - "8000:8000"
     expose:
       - "8000"
     volumes:
       - ./backend/uploads:/app/uploads
-      - ./frontend/dist:/app/frontend_dist
     environment:
       - SECRET_KEY=123123123
-      - DB_HOST=db  # Измени localhost на db
+      - DB_HOST=db
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_NAME=biblatexcheck
@@ -29,14 +46,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "80:80"
+    expose:
+      - "8000"
     environment:
-    - NODE_ENV=production
+      - NODE_ENV=production
     volumes:
-      - ./backend/uploads:/app/uploads
-    depends_on:
-      - backend
+      - ./frontend:/app
+      - ./frontend/dist:/usr/share/nginx/html
     restart: unless-stopped
 
   db:

@@ -40,12 +40,11 @@ scheduler = AsyncIOScheduler()
 
 # CORS
 origins = [
-    "http://bibcheck.ru","http://bibcheck.ru:8000","http://bibcheck.ru:8080","http://bibcheck.ru:80",
+    "http://bibcheck.ru",
     "https://bibcheck.ru",
-    "http://localhost",
-    "http://localhost:8080",
     "http://www.bibcheck.ru",
     "https://www.bibcheck.ru",
+    "http://localhost",
 ]
 
 app.add_middleware(
