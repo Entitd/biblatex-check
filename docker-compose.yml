@@ -5,7 +5,7 @@ services:
     container_name: bibcheck_nginx
     ports:
       - "80:80"
-      # - "443:443"
+      - "443:443"
     volumes:
       - ./frontend/ssl:/etc/nginx/ssl:ro
       - ./frontend/dist:/usr/share/nginx/html  # Статика фронтенда
