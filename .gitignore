@@ -1,0 +1,5 @@
+docker-compose.yml
+nginx.conf
+frontend/nginx.conf
+frontend/DockerFile
+backend/DockerFile
