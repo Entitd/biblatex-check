@@ -896,7 +896,7 @@ const PersonalAccount = () => {
               whiteSpace: 'nowrap',
               flexShrink: 1
             }}>
-              BIBCHECK.RU
+              BIBCHECK.RUu
             </Typography>
 
             {/* Блок с кнопками */}
