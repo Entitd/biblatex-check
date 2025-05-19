@@ -25,6 +25,7 @@ import ThemeToggleButton from "../../components/ThemeToggleButton/ThemeToggleBut
 import { useNavigate } from "react-router-dom";
 import LoginIcon from '@mui/icons-material/Login';
 import HowToRegIcon from '@mui/icons-material/HowToReg';
+import HelpComponent from '../../components/HelpComponent/HelpComponent';
 const guestAxios = axios.create({
   withCredentials: false,
 });
@@ -32,6 +33,8 @@ const guestAxios = axios.create({
 const authAxios = axios.create({
   withCredentials: true,
 });
+
+// const [isHelpOpen] = useState(false);
 
 const PersonalAccount = () => {
   const { user, logout, refreshToken } = useContext(UserContext);
@@ -896,7 +899,7 @@ const PersonalAccount = () => {
               whiteSpace: 'nowrap',
               flexShrink: 1
             }}>
-              BIBCHECK.RUu
+              BIBCHECK.RU
             </Typography>
 
             {/* Блок с кнопками */}
@@ -904,6 +907,8 @@ const PersonalAccount = () => {
               flexShrink: 0,
               ml: 2 // Добавляем отступ слева
             }}>
+              <HelpComponent />
+
               <ThemeToggleButton />
               {isGuest ? (
                 <>
