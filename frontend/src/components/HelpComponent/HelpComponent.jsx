@@ -6,6 +6,7 @@ import {
   Button,
   Stack,
 } from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { ThemeContext } from '../ThemeToggleButton/ThemeContext';
 
@@ -177,7 +178,17 @@ const HelpComponent = () => {
           </Typography>
 
           <Typography paragraph>
-            Модальной окно редактирования файла открывается при нажатии на кнопку "", для необходимой записи.
+            Модальной окно редактирования файла открывается при нажатии на кнопку "<Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<EditIcon />}
+                              sx={{
+                                borderColor: 'primary.main',
+                                color: 'primary.main'
+                              }}
+                            >
+                              Редактировать
+                            </Button>", для необходимой записи.
             Окно схоже с окном для создания bib-файла, однако найденные ошибки при проверке bib-файла выделены красным и объяснены причиной возникновения. 
           </Typography>
 
