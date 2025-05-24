@@ -3,12 +3,7 @@ import axios from 'axios';
 import {
   Container, Box, Typography, TextField, Button, IconButton, Table, TableHead, TableBody, TableRow, TableCell,
   Select, MenuItem, InputLabel, FormControl, Modal, Paper, InputAdornment, TablePagination, Menu, Fade, Backdrop,
-  useMediaQuery, useTheme, CssBaseline, Alert, Tooltip, Card,
-  Chip,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Snackbar,
+  useMediaQuery, useTheme, CssBaseline, Alert, Tooltip, Card, Chip, Accordion, AccordionSummary, AccordionDetails, Snackbar,
 } from "@mui/material";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -33,8 +28,6 @@ const guestAxios = axios.create({
 const authAxios = axios.create({
   withCredentials: true,
 });
-
-// const [isHelpOpen] = useState(false);
 
 const PersonalAccount = () => {
   const { user, logout, refreshToken } = useContext(UserContext);
@@ -149,8 +142,6 @@ const PersonalAccount = () => {
     return { standard, required, optional };
   };
 
-
-
   const DownloadMenu = ({ file }) => {
     const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
@@ -243,21 +234,7 @@ const PersonalAccount = () => {
     message: '',
     severity: 'info'
   });
-  
-  // И компонент где-то в рендере:
-  <Snackbar
-    open={snackbar.open}
-    autoHideDuration={6000}
-    onClose={() => setSnackbar({...snackbar, open: false})}
-  >
-    <Alert 
-      severity={snackbar.severity}
-      onClose={() => setSnackbar({...snackbar, open: false})}
-    >
-      {snackbar.message}
-    </Alert>
-  </Snackbar>
-  
+
   const parseBibFile = (content) => {
     const lines = content ? content.split('\n') : [];
     const sources = [];
@@ -331,19 +308,33 @@ const PersonalAccount = () => {
   };
 
   const handleSourceChange = (index, field, value) => {
-    const updatedSources = [...sources];
-    updatedSources[index] = {
-      ...updatedSources[index],
-      fields: {
-        ...updatedSources[index].fields,
-        [field]: value,
-      },
-    };
-    setSources(updatedSources);
+    const numericFields = ['year', 'volume', 'number', 'pages'];
+    if (numericFields.includes(field)) {
+      if (value === '' || /^\d+$/.test(value)) {
+        const updatedSources = [...sources];
+        updatedSources[index] = {
+          ...updatedSources[index],
+          fields: {
+            ...updatedSources[index].fields,
+            [field]: value,
+          },
+        };
+        setSources(updatedSources);
+      }
+    } else {
+      const updatedSources = [...sources];
+      updatedSources[index] = {
+        ...updatedSources[index],
+        fields: {
+          ...updatedSources[index].fields,
+          [field]: value,
+        },
+      };
+      setSources(updatedSources);
+    }
   };
 
   const saveBibFiles = async () => {
-    // Фильтруем пустые записи
     const nonEmptySources = sources.filter(source => 
       Object.values(source.fields).some(value => value.trim() !== '')
     );
@@ -353,12 +344,10 @@ const PersonalAccount = () => {
       return;
     }
   
-    // Проверка года (но не блокируем сохранение)
     const yearErrors = nonEmptySources.filter(source => 
-      source.fields.year && (isNaN(source.fields.year) || parseInt(source.fields.year) > currentYear
-    ));
+      source.fields.year && (isNaN(source.fields.year) || parseInt(source.fields.year) > currentYear)
+    );
   
-    // Проверка обязательных полей (только для предупреждения)
     const missingFieldsWarnings = nonEmptySources.map((source, idx) => {
       const requiredFields = getRequiredFieldsForType(source.type || 'misc');
       const missing = requiredFields.filter(field => !source.fields[field] || source.fields[field].trim() === '');
@@ -368,20 +357,17 @@ const PersonalAccount = () => {
     }).filter(Boolean);
   
     try {
-      // Форматируем источники
       const formattedSources = nonEmptySources.map((source, index) => ({
         ...source.fields,
         ID: `source${index + 1}`,
         type: source.type,
       }));
   
-      // Сохраняем файл
       const response = await (isGuest ? guestAxios : authAxios).post(
         isGuest ? '/api/guest/save-bib' : '/api/save-bib',
         isGuest ? { sessionId, files: formattedSources } : { files: formattedSources }
       );
   
-      // Обработка результата
       if (response.data?.errors || yearErrors.length > 0 || missingFieldsWarnings.length > 0) {
         const allWarnings = [
           ...(response.data?.errors || []),
@@ -395,7 +381,6 @@ const PersonalAccount = () => {
           severity: "warning"
         });
   
-        // Парсим ошибки для подсветки
         const errorLines = {};
         (response.data?.errors || []).forEach(error => {
           const match = error.match(/\(строка (\d+)\)$/);
@@ -411,7 +396,6 @@ const PersonalAccount = () => {
         });
       }
   
-      // Закрываем модалку и обновляем список
       setModalOpen(false);
       setSources([]);
       fetchFiles();
@@ -455,39 +439,36 @@ const PersonalAccount = () => {
       const { sources: parsedSources, sourceLines } = parseBibFile(content);
      
       let errorLines = {};
-    if (file.errors) {
-      // Обрабатываем ошибки как массив
-      const errorsArray = Array.isArray(file.errors) ? file.errors : [file.errors];
+      if (file.errors) {
+        const errorsArray = Array.isArray(file.errors) ? file.errors : [file.errors];
       
-      errorsArray.forEach(error => {
-        if (typeof error === 'string') {
-          const match = error.match(/\(строка (\d+)\)$/);
-          if (match) {
-            const lineNumber = parseInt(match[1], 10) - 1;
-            let sourceIndex = -1;
+        errorsArray.forEach(error => {
+          if (typeof error === 'string') {
+            const match = error.match(/\(строка (\d+)\)$/);
+            if (match) {
+              const lineNumber = parseInt(match[1], 10) - 1;
+              let sourceIndex = -1;
             
-            if (sourceLines && sourceLines.length > 0) {
-              sourceIndex = sourceLines.findIndex((startLine, idx) => {
-                const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
-                return lineNumber >= startLine && lineNumber < nextStartLine;
-              });
-            }
+              if (sourceLines && sourceLines.length > 0) {
+                sourceIndex = sourceLines.findIndex((startLine, idx) => {
+                  const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
+                  return lineNumber >= startLine && lineNumber < nextStartLine;
+                });
+              }
             
-            if (sourceIndex === -1 && parsedSources.length > 0) sourceIndex = 0;
-            if (sourceIndex !== -1 && sourceIndex < parsedSources.length) {
-              errorLines[sourceIndex] = error.trim();
+              if (sourceIndex === -1 && parsedSources.length > 0) sourceIndex = 0;
+              if (sourceIndex !== -1 && sourceIndex < parsedSources.length) {
+                errorLines[sourceIndex] = error.trim();
+              }
             }
           }
-        }
-      });
-    }
+        });
+      }
   
-      // Добавляем обязательные поля для каждого источника
       const sourcesWithRequiredFields = parsedSources.map((source, index) => {
         const requiredFields = getRequiredFieldsForType(source.type || 'misc');
         const fieldsWithRequired = { ...source.fields };
         
-        // Добавляем обязательные поля, если их нет
         requiredFields.forEach(field => {
           if (!fieldsWithRequired[field]) {
             fieldsWithRequired[field] = '';
@@ -497,7 +478,6 @@ const PersonalAccount = () => {
         return {
           ...source,
           fields: fieldsWithRequired,
-          // Сохраняем ошибки для этого источника
           errors: errorLines[index] || []
         };
       });
@@ -520,7 +500,6 @@ const PersonalAccount = () => {
       }
     }
   };
-
 
   const revalidateFile = async (fileId) => {
     try {
@@ -555,20 +534,16 @@ const PersonalAccount = () => {
   };
   
   const handleSaveEditedFile = async () => {
-    // Фильтруем пустые записи (где все поля пустые)
     const nonEmptySources = sources.filter(source => {
       return Object.values(source.fields).some(value => value.trim() !== '');
     });
   
-    // Если все записи пустые
     if (nonEmptySources.length === 0) {
       setError("Файл не может быть пустым");
       return;
     }
   
-    // Форматируем источники в bibtex-формат
     const formattedSources = nonEmptySources.map((source, index) => {
-      // Удаляем пустые обязательные поля, которые были добавлены автоматически
       const cleanedFields = { ...source.fields };
       const requiredFields = getRequiredFieldsForType(source.type || 'misc');
       
@@ -585,7 +560,6 @@ const PersonalAccount = () => {
       };
     });
   
-    // Генерируем содержимое файла
     const content = formattedSources
       .map(source => `@${source.type}{${source.ID},\n` +
         Object.entries(source)
@@ -605,20 +579,16 @@ const PersonalAccount = () => {
         ? { sessionId, file_id: editFileId, content }
         : { file_id: editFileId, content };
       
-      // Сохраняем файл в любом случае
       const saveResponse = await (isGuest ? guestAxios : authAxios).post(endpoint, payload, { withCredentials: true });
   
-      // Проверяем год только для показа предупреждения
       const yearErrors = sources.filter(source => {
         const yearValue = source.fields.year;
         return yearValue && (isNaN(yearValue) || parseInt(yearValue) > currentYear);
       });
   
-      // Запускаем повторную проверку файла, но не блокируем сохранение при ошибках
       try {
         const revalidateResponse = await revalidateFile(editFileId);
         
-        // Формируем список всех предупреждений (включая год)
         const allWarnings = [];
         
         if (yearErrors.length > 0) {
@@ -626,7 +596,6 @@ const PersonalAccount = () => {
         }
   
         if (revalidateResponse.errors) {
-          // Добавляем ошибки валидации
           if (typeof revalidateResponse.errors === 'string') {
             allWarnings.push(...revalidateResponse.errors.split('\n').filter(line => line.trim()));
           } else if (Array.isArray(revalidateResponse.errors)) {
@@ -635,7 +604,6 @@ const PersonalAccount = () => {
             allWarnings.push(...Object.values(revalidateResponse.errors));
           }
   
-          // Парсим ошибки для подсветки
           const { sourceLines } = parseBibFile(content);
           const errorLines = {};
           
@@ -685,7 +653,6 @@ const PersonalAccount = () => {
         });
       }
   
-      // В любом случае закрываем модальное окно и обновляем список файлов
       setEditModalOpen(false);
       fetchFiles();
       
@@ -721,13 +688,11 @@ const PersonalAccount = () => {
   
       if (file.errors && typeof file.errors === 'string') {
         file.errors.split('\n').filter(line => line.trim()).forEach(error => {
-          // Сопоставляем ошибки с конкретными записями
           const sourceMatch = error.match(/записи '([^']+)'/);
           if (sourceMatch) {
             const sourceId = sourceMatch[1];
             const source = sources.find(s => s.id === sourceId);
             if (source) {
-              // Добавляем ошибку в начало записи
               const errorLine = source.lineStart;
               modifiedContent[errorLine] = modifiedContent[errorLine].replace(
                 /(@\w+\{[^,]+,?)/,
@@ -845,233 +810,225 @@ const PersonalAccount = () => {
 
   return (
     <>
- <CssBaseline />
-  <Container
-    onDragOver={handleDragOver}
-    onDragLeave={handleDragLeave}
-    onDrop={handleDrop}
-    ref={dropRef}
-    maxWidth={false}
-    sx={{
-      position: 'relative',
-      padding: '20px',
-      height: '100vh',
-      overflow: 'auto',
-      backgroundColor: 'background.default',
-      width: '100%',
-      margin: '0 auto',
-      display: 'flex',
-      flexDirection: 'column'
-    }}
-  >
-       <Box>
-      {isDragging && (
-        <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#fff', background: 'rgba(255, 255, 255, 0.1)', padding: '15px 25px', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.2)' }}>
-            Перетащите файл сюда, чтобы загрузить
-          </Typography>
-        </Box>
-      )}
+      <CssBaseline />
+      <Container
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        ref={dropRef}
+        maxWidth={false}
+        sx={{
+          position: 'relative',
+          padding: '20px',
+          height: '100vh',
+          overflow: 'auto',
+          backgroundColor: 'background.default',
+          width: '100%',
+          margin: '0 auto',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        <Box>
+          {isDragging && (
+            <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#fff', background: 'rgba(255, 255, 255, 0.1)', padding: '15px 25px', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.2)' }}>
+                Перетащите файл сюда, чтобы загрузить
+              </Typography>
+            </Box>
+          )}
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2, width: '100%' }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+          {error && (
+            <Alert severity="error" sx={{ mb: 2, width: '100%' }} onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
 
-      {isGuest && (
-        <Alert severity="warning" sx={{ mb: 2, width: '100%' }}>
-          Вы в гостевом режиме. Все ваши данные будут удалены после завершения сессии.
-        </Alert>
-      )}
+          {isGuest && (
+            <Alert severity="warning" sx={{ mb: 2, width: '100%' }}>
+              Вы в гостевом режиме. Все ваши данные будут удалены после завершения сессии.
+            </Alert>
+          )}
 
-      <Box display="flex" flexDirection="column" gap={2} sx={{ width: '100%' }}>
-          {/* Первая строка: Название и кнопки авторизации */}
-          <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ width: '100%' }}>
-            {/* Название сайта */}
-            <Typography variant="h4" sx={{
-              fontWeight: 'bold',
-              fontSize: { xs: '1rem', sm: '2rem' },
-              color: 'text.primary',
-              minWidth: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              flexShrink: 1
-            }}>
-              BIBCHECK.RU
-            </Typography>
+          <Box display="flex" flexDirection="column" gap={2} sx={{ width: '100%' }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ width: '100%' }}>
+              <Typography variant="h4" sx={{
+                fontWeight: 'bold',
+                fontSize: { xs: '1rem', sm: '2rem' },
+                color: 'text.primary',
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flexShrink: 1
+              }}>
+                BIBCHECK.RU
+              </Typography>
 
-            {/* Блок с кнопками */}
-            <Box display="flex" alignItems="center" gap={1} sx={{
-              flexShrink: 0,
-              ml: 2 // Добавляем отступ слева
-            }}>
-              <HelpComponent />
+              <Box display="flex" alignItems="center" gap={1} sx={{
+                flexShrink: 0,
+                ml: 2
+              }}>
+                <HelpComponent />
+                <ThemeToggleButton />
+                {isGuest ? (
+                  <>
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      size="small"
+                      onClick={() => navigate("/login")}
+                      sx={{
+                        whiteSpace: 'nowrap',
+                        minWidth: 'max-content',
+                        fontSize: { xs: '0.7rem', sm: '0.875rem' }
+                      }}
+                    >
+                      Вход
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      size="small"
+                      onClick={() => navigate("/register")}
+                      sx={{
+                        whiteSpace: 'nowrap',
+                        minWidth: 'max-content',
+                        fontSize: { xs: '0.7rem', sm: '0.875rem' }
+                      }}
+                    >
+                      Регистрация
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <IconButton
+                      aria-label="account"
+                      onClick={handleMenuOpen}
+                      sx={{ color: 'text.primary' }}
+                    >
+                      <AccountCircleIcon fontSize={isMobile ? "medium" : "large"} />
+                    </IconButton>
+                    <Menu
+                      id="menu-appbar"
+                      anchorEl={anchorEl}
+                      open={Boolean(anchorEl)}
+                      onClose={handleMenuClose}
+                      PaperProps={{
+                        elevation: 3,
+                        sx: {
+                          borderRadius: '10px',
+                          boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)'
+                        }
+                      }}
+                    >
+                      <MenuItem onClick={handleLogout}>Выйти</MenuItem>
+                    </Menu>
+                  </>
+                )}
+              </Box>
+            </Box>
 
-              <ThemeToggleButton />
-              {isGuest ? (
-                <>
-                  <Button
-                    variant="outlined"
-                    color="primary"
-                    size="small"
-                    onClick={() => navigate("/login")}
-                    sx={{
-                      whiteSpace: 'nowrap',
-                      minWidth: 'max-content',
-                      fontSize: { xs: '0.7rem', sm: '0.875rem' }
-                    }}
-                  >
-                    Вход
-                  </Button>
+            <Box 
+              display="flex" 
+              gap={2}
+              flexWrap="wrap"
+              sx={{ 
+                width: '100%',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <Box 
+                sx={{
+                  flexGrow: 1,
+                  minWidth: '250px',
+                  maxWidth: { xs: '100%', md: '800px' },
+                }}
+              >
+                <TextField
+                  fullWidth
+                  placeholder="Поиск"
+                  variant="outlined"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                    endAdornment: searchText && (
+                      <InputAdornment position="end">
+                        <IconButton onClick={handleClearSearch} size="small">
+                          <ClearIcon />
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      height: '50px'
+                    }
+                  }}
+                />
+              </Box>
+
+              <Box 
+                display="flex" 
+                gap={2}
+                sx={{
+                  flexShrink: 0,
+                  width: { xs: '100%', sm: 'auto' },
+                  justifyContent: { xs: 'center'},
+                  marginTop: { xs: 0, sm: 0 },
+                }}
+              >
+                <Box>
                   <Button
                     variant="contained"
-                    color="primary"
-                    size="small"
-                    onClick={() => navigate("/register")}
+                    size="medium"
+                    onClick={handleCreateBibFile}
                     sx={{
-                      whiteSpace: 'nowrap',
-                      minWidth: 'max-content',
-                      fontSize: { xs: '0.7rem', sm: '0.875rem' }
+                      minWidth: '160px',
+                      height: '50px',
+                      px: 3,
                     }}
                   >
-                    Регистрация
+                    Создать bib-файл
                   </Button>
-                </>
-              ) : (
-                <>
-                  <IconButton
-                    aria-label="account"
-                    onClick={handleMenuOpen}
-                    sx={{ color: 'text.primary' }}
-                  >
-                    <AccountCircleIcon fontSize={isMobile ? "medium" : "large"} />
-                  </IconButton>
-                  <Menu
-                    id="menu-appbar"
-                    anchorEl={anchorEl}
-                    open={Boolean(anchorEl)}
-                    onClose={handleMenuClose}
-                    PaperProps={{
-                      elevation: 3,
-                      sx: {
-                        borderRadius: '10px',
-                        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)'
-                      }
+                </Box>
+                <Box>
+                  <Button
+                    variant="outlined"
+                    size="medium"
+                    onClick={() => document.getElementById('upload-bib-file').click()}
+                    sx={{
+                      minWidth: '160px',
+                      height: '50px',
+                      px: 3,
                     }}
                   >
-                    <MenuItem onClick={handleLogout}>Выйти</MenuItem>
-                  </Menu>
-                </>
-              )}
+                    Загрузить bib-файл
+                  </Button>
+                </Box>
+              </Box>
             </Box>
           </Box>
-
-     {/* Вторая строка: Поле поиска и кнопки */}
-<Box 
-  display="flex" 
-  gap={2}
-  flexWrap="wrap"
-  sx={{ 
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'space-between'
-  }}
->
-  {/* Поле поиска - левая часть */}
-  <Box 
-    sx={{
-      flexGrow: 1,
-      minWidth: '250px',
-      maxWidth: { xs: '100%', md: '800px' },
-    }}
-  >
-    <TextField
-      fullWidth
-      placeholder="Поиск"
-      variant="outlined"
-      value={searchText}
-      onChange={(e) => setSearchText(e.target.value)}
-      InputProps={{
-        startAdornment: (
-          <InputAdornment position="start">
-            <SearchIcon />
-          </InputAdornment>
-        ),
-        endAdornment: searchText && (
-          <InputAdornment position="end">
-            <IconButton onClick={handleClearSearch} size="small">
-              <ClearIcon />
-            </IconButton>
-          </InputAdornment>
-        ),
-      }}
-      sx={{
-        '& .MuiOutlinedInput-root': {
-          height: '50px' // Фиксированная высота для поля поиска
-        }
-      }}
-    />
-  </Box>
-
-  {/* Группа кнопок - правая часть */}
-  <Box 
-    display="flex" 
-    gap={2}
-    sx={{
-      flexShrink: 0,
-      width: { xs: '100%', sm: 'auto' },
-      justifyContent: { xs: 'center'},
-      marginTop: { xs: 0, sm: 0 },
-    }}
-  >
-    <Box>
-    <Button
-      variant="contained"
-      size="medium"
-      onClick={handleCreateBibFile}
-      sx={{
-        minWidth: '160px',
-        height: '50px', // Такая же высота как у поля поиска
-        px: 3,
-      }}
-    >
-      Создать bib-файл
-    </Button>
-    </Box>
-    <Box>
-    <Button
-      variant="outlined"
-      size="medium"
-      onClick={() => document.getElementById('upload-bib-file').click()}
-      sx={{
-        minWidth: '160px',
-        height: '50px', // Такая же высота как у поля поиска
-        px: 3,
-      }}
-    >
-      Загрузить bib-файл
-    </Button>
-    </Box>
-  </Box>
-</Box>
-        </Box>
         </Box>
 
         <Paper sx={{
-      borderRadius: '15px',
-      boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
-      overflow: 'hidden',
-      background: 'background.paper',
-      flex: '1 1 auto', // Гибкое заполнение доступного пространства
-      marginTop: '20px',
-      minHeight: '300px', // Минимальная высота
-      display: 'flex',
-      flexDirection: 'column',
-      position: 'relative'
-    }}>
-          {/* Версия для средних и больших экранов */}
+          borderRadius: '15px',
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
+          overflow: 'hidden',
+          background: 'background.paper',
+          flex: '1 1 auto',
+          marginTop: '20px',
+          minHeight: '300px',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative'
+        }}>
           {!isMobile ? (
             <>
               <Box sx={{
@@ -1088,7 +1045,7 @@ const PersonalAccount = () => {
               }}>
                 <Table stickyHeader sx={{
                   minWidth: '100%',
-                  tableLayout: 'auto' // Автоматическое распределение ширины
+                  tableLayout: 'auto'
                 }}>
                   <TableHead>
                     <TableRow>
@@ -1180,12 +1137,8 @@ const PersonalAccount = () => {
                             {file.course_compliance}
                           </Typography>
                         </TableCell>
-
                         <TableCell align="center">
-  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-
-
-                       
+                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
                             <Button
                               variant="outlined"
                               size="small"
@@ -1229,7 +1182,6 @@ const PersonalAccount = () => {
               />
             </>
           ) : (
-            /* Мобильная версия (карточки) */
             <Box sx={{
               flex: 1,
               overflowY: 'auto',
@@ -1257,19 +1209,14 @@ const PersonalAccount = () => {
                       sx={{ ml: 1 }}
                     />
                   </Box>
-
                   <Box sx={{ mb: 1 }}>
                     <Typography variant="body2">
                       <Box component="span" sx={{ fontWeight: 500 }}>Соответствие:</Box> {file.course_compliance}
                     </Typography>
                   </Box>
-
                   <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-                  <DownloadMenu file={file} />
-              
-                    
+                    <DownloadMenu file={file} />
                   </Box>
-
                   <Box sx={{ display: 'flex', gap: 1 }}>
                     <Button
                       fullWidth
@@ -1300,7 +1247,6 @@ const PersonalAccount = () => {
                   </Box>
                 </Card>
               ))}
-
               <TablePagination
                 rowsPerPageOptions={[5, 10, 25]}
                 component="div"
@@ -1320,48 +1266,46 @@ const PersonalAccount = () => {
         </Paper>
 
         <Modal
-  open={modalOpen}
-  onClose={() => {
-    setModalOpen(false);
-    setError(null); // Сбрасываем ошибку при закрытии
-  }}
-  closeAfterTransition
-  slots={{ backdrop: Backdrop }}
-  slotProps={{
-    backdrop: {
-      timeout: 500,
-      sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
-    },
-  }}
->
-  <Fade in={modalOpen}>
-  <Paper
-  sx={{
-    width: { xs: '90%', sm: '80%', md: '70%' }, // Немного уменьшаем ширину на больших экранах
-    p: 3,
-    position: 'fixed', // Фиксированное позиционирование
-    top: '50%',       // Центрирование по вертикали
-    left: '50%',      // Центрирование по горизонтали
-    transform: 'translate(-50%, -50%)', // Точное центрирование
-    borderRadius: '15px',
-    boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-    background: 'background.paper',
-    height: '90vh',   // Занимаем 90% высоты viewport
-    maxHeight: 'none', // Убираем ограничение максимальной высоты
-    display: 'flex',
-    flexDirection: 'column',
-    zIndex: 1300,
-    overflowY: 'auto', // Добавляем скролл при необходимости
-  }}
->
-      <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>Создать bib-файл</Typography>
-      
-      {/* Добавленный Alert для отображения ошибок */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+          open={modalOpen}
+          onClose={() => {
+            setModalOpen(false);
+            setError(null);
+          }}
+          closeAfterTransition
+          slots={{ backdrop: Backdrop }}
+          slotProps={{
+            backdrop: {
+              timeout: 500,
+              sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
+            },
+          }}
+        >
+          <Fade in={modalOpen}>
+            <Paper
+              sx={{
+                width: { xs: '90%', sm: '80%', md: '70%' },
+                p: 3,
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                borderRadius: '15px',
+                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+                background: 'background.paper',
+                height: '90vh',
+                maxHeight: 'none',
+                display: 'flex',
+                flexDirection: 'column',
+                zIndex: 1300,
+                overflowY: 'auto',
+              }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>Создать bib-файл</Typography>
+              {error && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                  {error}
+                </Alert>
+              )}
               <FormControl fullWidth margin="normal" sx={{ width: '100%' }}>
                 <InputLabel id="type-label">Тип записи</InputLabel>
                 <Select
@@ -1383,17 +1327,46 @@ const PersonalAccount = () => {
               {sources.length > 0 && (
                 <Box my={2} sx={{ width: '100%' }}>
                   <Typography variant="subtitle1">Источник {currentSourceIndex + 1}</Typography>
-                  {currentFields.map((field) => (
-                    <TextField
-                      key={field}
-                      fullWidth
-                      margin="dense"
-                      label={field}
-                      value={sources[currentSourceIndex].fields[field] || ''}
-                      onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
-                      sx={{ width: '100%' }}
-                    />
-                  ))}
+                  {currentFields.map((field) => {
+                    const isYearField = field === 'year';
+                    const isNumericField = ['year', 'volume', 'number', 'pages'].includes(field);
+                    const fieldValue = sources[currentSourceIndex].fields[field] || '';
+                    const isInvalidYear = isYearField && fieldValue && 
+                                        (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
+                    const requiredFields = getRequiredFieldsForType(sources[currentSourceIndex].type || 'misc');
+                    const isMissingField = requiredFields.includes(field) && !fieldValue;
+
+                    return (
+                      <TextField
+                        key={field}
+                        fullWidth
+                        margin="dense"
+                        label={field}
+                        value={fieldValue}
+                        onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
+                        sx={{
+                          width: '100%',
+                          '& .MuiInputBase-input': {
+                            textDecoration: isMissingField ? 'underline red' : 'none',
+                            color: isMissingField || isInvalidYear ? 'error.main' : 'text.primary'
+                          },
+                        }}
+                        error={isMissingField || isInvalidYear}
+                        helperText={
+                          isMissingField 
+                            ? 'Обязательное поле' 
+                            : isInvalidYear
+                              ? isNaN(fieldValue) 
+                                ? 'Год должен быть числом' 
+                                : `Год не может быть больше текущего (${currentYear})`
+                              : isNumericField && fieldValue && !/^\d+$/.test(fieldValue)
+                                ? `${field} должен быть числом`
+                                : ''
+                        }
+                        inputProps={isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*' } : {}}
+                      />
+                    );
+                  })}
                 </Box>
               )}
               <Box display="flex" justifyContent="space-between" mt={2} sx={{ width: '100%' }}>
@@ -1420,24 +1393,24 @@ const PersonalAccount = () => {
         >
           <Fade in={editModalOpen}>
             <Paper
-  sx={{
-    width: { xs: '90%', sm: '80%', md: '70%' }, // Немного уменьшаем ширину на больших экранах
-    p: 3,
-    position: 'fixed', // Фиксированное позиционирование
-    top: '50%',       // Центрирование по вертикали
-    left: '50%',      // Центрирование по горизонтали
-    transform: 'translate(-50%, -50%)', // Точное центрирование
-    borderRadius: '15px',
-    boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-    background: 'background.paper',
-    height: '90vh',   // Занимаем 90% высоты viewport
-    maxHeight: 'none', // Убираем ограничение максимальной высоты
-    display: 'flex',
-    flexDirection: 'column',
-    zIndex: 1300,
-    overflowY: 'auto', // Добавляем скролл при необходимости
-  }}
->
+              sx={{
+                width: { xs: '90%', sm: '80%', md: '70%' },
+                p: 3,
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                borderRadius: '15px',
+                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+                background: 'background.paper',
+                height: '90vh',
+                maxHeight: 'none',
+                display: 'flex',
+                flexDirection: 'column',
+                zIndex: 1300,
+                overflowY: 'auto',
+              }}
+            >
               <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
                 Редактировать bib-файл
               </Typography>
@@ -1482,49 +1455,44 @@ const PersonalAccount = () => {
                         </FormControl>
 
                         {required.concat(optional).map((field) => {
-  const isYearField = field === 'year';
-  const fieldValue = updatedFields[field] || '';
-  const isInvalidYear = isYearField && fieldValue && 
-                      (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
-  const isMissingField = missingFields.includes(field);
+                          const isYearField = field === 'year';
+                          const isNumericField = ['year', 'volume', 'number', 'pages'].includes(field);
+                          const fieldValue = updatedFields[field] || '';
+                          const isInvalidYear = isYearField && fieldValue && 
+                                              (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
+                          const isMissingField = missingFields.includes(field);
 
-  return (
-    <TextField
-      key={field}
-      fullWidth
-      margin="dense"
-      label={field}
-      value={fieldValue}
-      onChange={(e) => {
-        if (isYearField) {
-          const value = e.target.value;
-          if (value === '' || /^\d+$/.test(value)) {
-            handleSourceChange(index, field, value);
-          }
-        } else {
-          handleSourceChange(index, field, e.target.value);
-        }
-      }}
-      sx={{
-        width: '100%',
-        '& .MuiInputBase-input': {
-          textDecoration: isMissingField ? 'underline red' : 'none',
-          color: isMissingField || isInvalidYear ? 'error.main' : 'text.primary'
-        },
-      }}
-      error={isMissingField || isInvalidYear}
-      helperText={
-        isMissingField 
-          ? 'Обязательное поле, добавлено автоматически' 
-          : isInvalidYear
-            ? isNaN(fieldValue) 
-              ? 'Год должен быть числом' 
-              : `Год не может быть больше текущего (${currentYear})`
-            : ''
-      }
-    />
-  );
-})}
+                          return (
+                            <TextField
+                              key={field}
+                              fullWidth
+                              margin="dense"
+                              label={field}
+                              value={fieldValue}
+                              onChange={(e) => handleSourceChange(index, field, e.target.value)}
+                              sx={{
+                                width: '100%',
+                                '& .MuiInputBase-input': {
+                                  textDecoration: isMissingField ? 'underline red' : 'none',
+                                  color: isMissingField || isInvalidYear ? 'error.main' : 'text.primary'
+                                },
+                              }}
+                              error={isMissingField || isInvalidYear}
+                              helperText={
+                                isMissingField 
+                                  ? 'Обязательное поле, добавлено автоматически' 
+                                  : isInvalidYear
+                                    ? isNaN(fieldValue) 
+                                      ? 'Год должен быть числом' 
+                                      : `Год не может быть больше текущего (${currentYear})`
+                                    : isNumericField && fieldValue && !/^\d+$/.test(fieldValue)
+                                      ? `${field} должен быть числом`
+                                      : ''
+                              }
+                              inputProps={isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*' } : {}}
+                            />
+                          );
+                        })}
 
                         {optional.map((field) => (
                           <Box key={field} display="flex" alignItems="center" sx={{ width: '100%' }}>
@@ -1570,79 +1538,93 @@ const PersonalAccount = () => {
         </Modal>
 
         <Modal open={errorModalOpen} onClose={() => setErrorModalOpen(false)}>
-  <Box sx={{
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    width: '80%',
-    maxHeight: '80vh',
-    bgcolor: 'background.paper',
-    boxShadow: 24,
-    p: 4,
-    overflow: 'auto'
-  }}>
-    <Typography variant="h6" gutterBottom>
-      Ошибки в файле: {files.find(f => f.id === errorFileId)?.name_file}
-    </Typography>
-    
-    {Object.keys(editedLines).length > 0 && (
-      <>
-        <Typography variant="subtitle1" color="error" gutterBottom>
-          Обнаруженные ошибки:
-        </Typography>
-        <Box component="ul" sx={{ pl: 2, mb: 2 }}>
-          {Object.values(editedLines).map((error, i) => (
-            <Typography key={i} component="li" color="error">
-              {error}
+          <Box sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '80%',
+            maxHeight: '80vh',
+            bgcolor: 'background.paper',
+            boxShadow: 24,
+            p: 4,
+            overflow: 'auto'
+          }}>
+            <Typography variant="h6" gutterBottom>
+              Ошибки в файле: {files.find(f => f.id === errorFileId)?.name_file}
             </Typography>
-          ))}
-        </Box>
-      </>
-    )}
+            
+            {Object.keys(editedLines).length > 0 && (
+              <>
+                <Typography variant="subtitle1" color="error" gutterBottom>
+                  Обнаруженные ошибки:
+                </Typography>
+                <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+                  {Object.values(editedLines).map((error, i) => (
+                    <Typography key={i} component="li" color="error">
+                      {error}
+                    </Typography>
+                  ))}
+                </Box>
+              </>
+            )}
 
-    <Typography variant="subtitle1" gutterBottom>
-      Содержимое файла:
-    </Typography>
-    <Paper sx={{ 
-      p: 2, 
-      backgroundColor: isDarkMode ? 'grey.900' : 'grey.50',
-      fontFamily: 'monospace',
-      whiteSpace: 'pre-wrap'
-    }}>
-      {editContent.split('\n').map((line, i) => (
-        <Typography 
-          key={i} 
-          component="div"
-          sx={{ 
-            color: editedLines[i] ? 'error.main' : 'text.primary',
-            fontWeight: editedLines[i] ? 'bold' : 'normal'
-          }}
+            <Typography variant="subtitle1" gutterBottom>
+              Содержимое файла:
+            </Typography>
+            <Paper sx={{ 
+              p: 2, 
+              backgroundColor: isDarkMode ? 'grey.900' : 'grey.50',
+              fontFamily: 'monospace',
+              whiteSpace: 'pre-wrap'
+            }}>
+              {editContent.split('\n').map((line, i) => (
+                <Typography 
+                  key={i} 
+                  component="div"
+                  sx={{ 
+                    color: editedLines[i] ? 'error.main' : 'text.primary',
+                    fontWeight: editedLines[i] ? 'bold' : 'normal'
+                  }}
+                >
+                  {line}
+                </Typography>
+              ))}
+            </Paper>
+
+            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+              <Button 
+                variant="contained" 
+                onClick={() => setErrorModalOpen(false)}
+              >
+                Закрыть
+              </Button>
+            </Box>
+          </Box>
+        </Modal>
+
+        <input
+          id="upload-bib-file"
+          type="file"
+          accept=".bib"
+          style={{ display: 'none' }}
+          onChange={uploadBibFiles}
+          multiple
+        />
+
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={6000}
+          onClose={handleSnackbarClose}
         >
-          {line}
-        </Typography>
-      ))}
-    </Paper>
-
-    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-      <Button 
-        variant="contained" 
-        onClick={() => setErrorModalOpen(false)}
-      >
-        Закрыть
-      </Button>
-    </Box>
-  </Box>
-</Modal>
+          <Alert 
+            severity={snackbar.severity}
+            onClose={handleSnackbarClose}
+          >
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </Container>
-      <input
-  id="upload-bib-file"
-  type="file"
-  accept=".bib"
-  style={{ display: 'none' }}
-  onChange={uploadBibFiles}
-  multiple
-/>
     </>
   );
 };
