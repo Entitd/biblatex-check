@@ -21,6 +21,7 @@ import { useNavigate } from "react-router-dom";
 import LoginIcon from '@mui/icons-material/Login';
 import HowToRegIcon from '@mui/icons-material/HowToReg';
 import HelpComponent from '../../components/HelpComponent/HelpComponent';
+
 const guestAxios = axios.create({
   withCredentials: false,
 });
@@ -102,7 +103,7 @@ const PersonalAccount = () => {
     return isNaN(date) ? "Некорректная дата" : date.toLocaleDateString('ru-RU');
   };
 
-  const getFieldsForType = (type) => {
+  const getBaseFieldsForType = (type) => {
     switch (type) {
       case "article": return ["author", "title", "journal", "year", "volume", "number", "pages"];
       case "book": return ["author", "title", "year", "address", "publisher", "pages"];
@@ -116,23 +117,34 @@ const PersonalAccount = () => {
     }
   };
 
-  const getRequiredFieldsForType = (type) => {
-    switch (type) {
-      case "article": return ["author", "title", "journal", "year", "volume", "number", "pages"];
-      case "book": return ["author", "title", "year", "address", "publisher", "pages"];
-      case "conference": return ["author", "title", "booktitle", "year", "pages", "organization"];
-      case "techReport": return ["author", "title", "institution", "year"];
-      case "inProceedings": return ["author", "title", "booktitle", "year", "pages", "publisher", "address"];
-      case "online": return ["author", "title", "url", "urldate"];
-      case "manual": return ["title", "organization", "year"];
-      case "misc": return ["author", "title", "urldate", "url"];
-      default: return [];
-    }
+  const getFieldsForType = (type, title = '') => {
+    const baseFields = getBaseFieldsForType(type);
+    const hasCyrillic = /[\u0400-\u04FF]/.test(title);
+    return hasCyrillic || !title ? baseFields : [...baseFields, "hyphenation"];
+  };
+
+  const getRequiredFieldsForType = (type, title = '') => {
+    const baseRequiredFields = (() => {
+      switch (type) {
+        case "article": return ["author", "title", "journal", "year", "volume", "number", "pages"];
+        case "book": return ["author", "title", "year", "address", "publisher", "pages"];
+        case "conference": return ["author", "title", "booktitle", "year", "pages", "organization"];
+        case "techReport": return ["author", "title", "institution", "year"];
+        case "inProceedings": return ["author", "title", "booktitle", "year", "pages", "publisher", "address"];
+        case "online": return ["author", "title", "url", "urldate"];
+        case "manual": return ["title", "organization", "year"];
+        case "misc": return ["author", "title", "urldate", "url"];
+        default: return [];
+      }
+    })();
+    
+    const hasCyrillic = /[\u0400-\u04FF]/.test(title);
+    return hasCyrillic || !title ? baseRequiredFields : [...baseRequiredFields, "hyphenation"];
   };
 
   const getAllFieldsFromSource = (source, type) => {
-    const standardFields = getFieldsForType(type);
-    const requiredFields = getRequiredFieldsForType(type);
+    const standardFields = getFieldsForType(type, source.fields.title || '');
+    const requiredFields = getRequiredFieldsForType(type, source.fields.title || '');
     const allFieldsInSource = Object.keys(source.fields);
 
     const standard = standardFields.filter(field => allFieldsInSource.includes(field));
@@ -278,7 +290,7 @@ const PersonalAccount = () => {
     updatedSources[index].type = type;
 
     if (isEditing) {
-      const standardFields = getFieldsForType(type);
+      const standardFields = getFieldsForType(type, currentFields.title || '');
       updatedSources[index].fields = {
         ...currentFields,
         ...standardFields.reduce((acc, field) => {
@@ -287,7 +299,7 @@ const PersonalAccount = () => {
         }, {}),
       };
     } else {
-      const standardFields = getFieldsForType(type);
+      const standardFields = getFieldsForType(type, currentFields.title || '');
       updatedSources[index].fields = standardFields.reduce((acc, field) => {
         acc[field] = currentFields[field] || '';
         return acc;
@@ -295,7 +307,7 @@ const PersonalAccount = () => {
     }
 
     setSources(updatedSources);
-    setCurrentFields(getFieldsForType(type));
+    setCurrentFields(getFieldsForType(type, currentFields.title || ''));
   };
 
   const currentYear = new Date().getFullYear();
@@ -311,9 +323,11 @@ const PersonalAccount = () => {
     const singleNumericFields = ['year', 'volume', 'number'];
     const pageRangeField = ['page', 'pages'];
     
+    const updatedSources = [...sources];
+
     if (singleNumericFields.includes(field)) {
+      // Allow only digits or empty string
       if (value === '' || /^\d+$/.test(value)) {
-        const updatedSources = [...sources];
         updatedSources[index] = {
           ...updatedSources[index],
           fields: {
@@ -321,11 +335,8 @@ const PersonalAccount = () => {
             [field]: value,
           },
         };
-        setSources(updatedSources);
       }
     } else if (pageRangeField.includes(field)) {
-      // Разрешаем любые символы при вводе, но показываем ошибку если формат неверный
-      const updatedSources = [...sources];
       updatedSources[index] = {
         ...updatedSources[index],
         fields: {
@@ -333,9 +344,22 @@ const PersonalAccount = () => {
           [field]: value,
         },
       };
-      setSources(updatedSources);
+    } else if (field === 'title') {
+      const hasCyrillic = /[\u0400-\u04FF]/.test(value);
+      updatedSources[index] = {
+        ...updatedSources[index],
+        fields: {
+          ...updatedSources[index].fields,
+          [field]: value,
+        },
+      };
+      if (hasCyrillic && updatedSources[index].fields.hyphenation) {
+        delete updatedSources[index].fields.hyphenation;
+      } else if (!hasCyrillic && value && !updatedSources[index].fields.hyphenation) {
+        updatedSources[index].fields.hyphenation = '';
+      }
+      setCurrentFields(getFieldsForType(updatedSources[index].type || 'misc', value));
     } else {
-      const updatedSources = [...sources];
       updatedSources[index] = {
         ...updatedSources[index],
         fields: {
@@ -343,8 +367,9 @@ const PersonalAccount = () => {
           [field]: value,
         },
       };
-      setSources(updatedSources);
     }
+
+    setSources(updatedSources);
   };
 
   const saveBibFiles = async () => {
@@ -362,12 +387,17 @@ const PersonalAccount = () => {
     );
   
     const missingFieldsWarnings = nonEmptySources.map((source, idx) => {
-      const requiredFields = getRequiredFieldsForType(source.type || 'misc');
+      const requiredFields = getRequiredFieldsForType(source.type || 'misc', source.fields.title || '');
       const missing = requiredFields.filter(field => !source.fields[field] || source.fields[field].trim() === '');
       return missing.length > 0 
         ? `Источник ${idx + 1}: отсутствуют обязательные поля (${missing.join(', ')})`
         : null;
     }).filter(Boolean);
+  
+    if (missingFieldsWarnings.length > 0) {
+      setError(missingFieldsWarnings.join('; '));
+      return;
+    }
   
     try {
       const formattedSources = nonEmptySources.map((source, index) => ({
@@ -381,11 +411,10 @@ const PersonalAccount = () => {
         isGuest ? { sessionId, files: formattedSources } : { files: formattedSources }
       );
   
-      if (response.data?.errors || yearErrors.length > 0 || missingFieldsWarnings.length > 0) {
+      if (response.data?.errors || yearErrors.length > 0) {
         const allWarnings = [
           ...(response.data?.errors || []),
           ...yearErrors.map(() => `Проверьте год публикации (не может быть больше ${currentYear})`),
-          ...missingFieldsWarnings
         ];
   
         setSnackbar({
@@ -422,23 +451,23 @@ const PersonalAccount = () => {
   const navigateSource = (direction) => {
     if (direction === 'next' && currentSourceIndex < sources.length - 1) {
       setCurrentSourceIndex(currentSourceIndex + 1);
-      setCurrentFields(getFieldsForType(sources[currentSourceIndex + 1].type));
+      setCurrentFields(getFieldsForType(sources[currentSourceIndex + 1].type, sources[currentSourceIndex + 1].fields.title || ''));
     } else if (direction === 'prev' && currentSourceIndex > 0) {
       setCurrentSourceIndex(currentSourceIndex - 1);
-      setCurrentFields(getFieldsForType(sources[currentSourceIndex - 1].type));
+      setCurrentFields(getFieldsForType(sources[currentSourceIndex - 1].type, sources[currentSourceIndex - 1].fields.title || ''));
     }
   };
 
   const handleCreateBibFile = () => {
     const initialType = 'article';
-    const initialFields = getFieldsForType(initialType).reduce((acc, field) => {
+    const initialFields = getBaseFieldsForType(initialType).reduce((acc, field) => {
       acc[field] = '';
       return acc;
     }, {});
     setModalOpen(true);
     setSources([{ type: initialType, fields: initialFields }]);
     setCurrentSourceIndex(0);
-    setCurrentFields(getFieldsForType(initialType));
+    setCurrentFields(getBaseFieldsForType(initialType));
     setHasSource(true);
   };
 
@@ -479,7 +508,7 @@ const PersonalAccount = () => {
       }
   
       const sourcesWithRequiredFields = parsedSources.map((source, index) => {
-        const requiredFields = getRequiredFieldsForType(source.type || 'misc');
+        const requiredFields = getRequiredFieldsForType(source.type || 'misc', source.fields.title || '');
         const fieldsWithRequired = { ...source.fields };
         
         requiredFields.forEach(field => {
@@ -497,7 +526,7 @@ const PersonalAccount = () => {
   
       setSources(sourcesWithRequiredFields);
       setCurrentSourceIndex(0);
-      setCurrentFields(getFieldsForType(sourcesWithRequiredFields[0]?.type || ''));
+      setCurrentFields(getFieldsForType(sourcesWithRequiredFields[0]?.type || '', sourcesWithRequiredFields[0]?.fields.title || ''));
       setEditContent(content);
       setEditFileId(file.id);
       setEditedLines(errorLines);
@@ -556,9 +585,38 @@ const PersonalAccount = () => {
       return;
     }
   
+    const numericFieldErrors = nonEmptySources.map((source, idx) => {
+      const errors = [];
+      if (source.fields.volume && !/^\d+$/.test(source.fields.volume)) {
+        errors.push(`volume в источнике ${idx + 1} должно быть числом`);
+      }
+      if (source.fields.number && !/^\d+$/.test(source.fields.number)) {
+        errors.push(`number в источнике ${idx + 1} должно быть числом`);
+      }
+      return errors.length > 0 ? errors.join(', ') : null;
+    }).filter(Boolean);
+  
+    if (numericFieldErrors.length > 0) {
+      setError(numericFieldErrors.join('; '));
+      return;
+    }
+  
+    const missingFieldsWarnings = nonEmptySources.map((source, idx) => {
+      const requiredFields = getRequiredFieldsForType(source.type || 'misc', source.fields.title || '');
+      const missing = requiredFields.filter(field => !source.fields[field] || source.fields[field].trim() === '');
+      return missing.length > 0 
+        ? `Источник ${idx + 1}: отсутствуют обязательные поля (${missing.join(', ')})`
+        : null;
+    }).filter(Boolean);
+  
+    if (missingFieldsWarnings.length > 0) {
+      setError(missingFieldsWarnings.join('; '));
+      return;
+    }
+  
     const formattedSources = nonEmptySources.map((source, index) => {
       const cleanedFields = { ...source.fields };
-      const requiredFields = getRequiredFieldsForType(source.type || 'misc');
+      const requiredFields = getRequiredFieldsForType(source.type || 'misc', source.fields.title || '');
       
       requiredFields.forEach(field => {
         if (cleanedFields[field] === '') {
@@ -699,19 +757,27 @@ const PersonalAccount = () => {
       let errors = {};
       let modifiedContent = content.split('\n');
   
-      if (file.errors && typeof file.errors === 'string') {
-        file.errors.split('\n').filter(line => line.trim()).forEach(error => {
-          const sourceMatch = error.match(/записи '([^']+)'/);
-          if (sourceMatch) {
-            const sourceId = sourceMatch[1];
-            const source = sources.find(s => s.id === sourceId);
-            if (source) {
-              const errorLine = source.lineStart;
-              modifiedContent[errorLine] = modifiedContent[errorLine].replace(
-                /(@\w+\{[^,]+,?)/,
-                `$1 ${error.trim()}`
-              );
-              errors[errorLine] = error.trim();
+      if (file.errors) {
+        const errorsArray = Array.isArray(file.errors) ? file.errors : [file.errors];
+      
+        errorsArray.forEach(error => {
+          if (typeof error === 'string') {
+            const match = error.match(/\(строка (\d+)\)$/);
+            if (match) {
+              const lineNumber = parseInt(match[1], 10) - 1;
+              let sourceIndex = -1;
+              
+              if (sourceLines && sourceLines.length > 0) {
+                sourceIndex = sourceLines.findIndex((startLine, idx) => {
+                  const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
+                  return lineNumber >= startLine && lineNumber < nextStartLine;
+                });
+              }
+              
+              if (sourceIndex === -1 && sources.length > 0) sourceIndex = 0;
+              if (sourceIndex !== -1 && sourceIndex < sources.length) {
+                errors[sourceIndex] = error.trim();
+              }
             }
           }
         });
@@ -738,7 +804,7 @@ const PersonalAccount = () => {
     const parsedSources = parseBibFile(newContent);
     setSources(parsedSources);
     setCurrentSourceIndex(0);
-    setCurrentFields(getFieldsForType(parsedSources[0]?.type || ''));
+    setCurrentFields(getFieldsForType(parsedSources[0]?.type || '', parsedSources[0]?.fields.title || ''));
   };
 
   const uploadBibFiles = (event) => {
@@ -1347,43 +1413,46 @@ const PersonalAccount = () => {
                     const fieldValue = sources[currentSourceIndex].fields[field] || '';
                     const isInvalidYear = isYearField && fieldValue && 
                                         (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
+                    const isInvalidNumeric = (field === 'volume' || field === 'number') && fieldValue && !/^\d+$/.test(fieldValue);
                     const isInvalidPage = isPageField && fieldValue && 
                                         !(/^\d+$/.test(fieldValue) || /^\d+[-]{1,2}\d+$/.test(fieldValue));
-                    const requiredFields = getRequiredFieldsForType(sources[currentSourceIndex].type || 'misc');
+                    const requiredFields = getRequiredFieldsForType(sources[currentSourceIndex].type || 'misc', sources[currentSourceIndex].fields.title || '');
                     const isMissingField = requiredFields.includes(field) && !fieldValue;
 
                     return (
                       <TextField
-  key={field}
-  fullWidth
-  margin="dense"
-  label={field}
-  value={fieldValue}
-  onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
-  sx={{
-    width: '100%',
-    '& .MuiInputBase-input': {
-      textDecoration: isMissingField ? 'underline red' : 'none',
-      color: isMissingField || isInvalidYear || isInvalidPage ? 'error.main' : 'text.primary'
-    },
-  }}
-  error={isMissingField || isInvalidYear || isInvalidPage}
-  helperText={
-    isMissingField 
-      ? 'Обязательное поле' 
-      : isInvalidYear
-        ? isNaN(fieldValue) 
-          ? 'Год должен быть числом' 
-          : `Год не может быть больше текущего (${currentYear})`
-        : isInvalidPage
-          ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
-          : ''
-  }
-  inputProps={
-    isNumericField ? { inputMode: 'numeric' } : {}
-    // Убрали pattern для страниц, чтобы разрешить свободный ввод
-  }
-/>
+                        key={field}
+                        fullWidth
+                        margin="dense"
+                        label={field}
+                        value={fieldValue}
+                        onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
+                        sx={{
+                          width: '100%',
+                          '& .MuiInputBase-input': {
+                            textDecoration: isMissingField ? 'underline red' : 'none',
+                            color: isMissingField || isInvalidYear || isInvalidNumeric || isInvalidPage ? 'error.main' : 'text.primary'
+                          },
+                        }}
+                        error={isMissingField || isInvalidYear || isInvalidNumeric || isInvalidPage}
+                        helperText={
+                          isMissingField 
+                            ? 'Обязательное поле' 
+                            : isInvalidYear
+                              ? isNaN(fieldValue) 
+                                ? 'Год должен быть числом' 
+                                : `Год не может быть больше текущего (${currentYear})`
+                              : isInvalidNumeric
+                                ? 'Поле должно содержать только число'
+                                : isInvalidPage
+                                  ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
+                                  : ''
+                        }
+                        inputProps={{
+                          ...(isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*', type: 'text' } : {}),
+                          ...(isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {})
+                        }}
+                      />
                     );
                   })}
                 </Box>
@@ -1473,13 +1542,14 @@ const PersonalAccount = () => {
                           </Select>
                         </FormControl>
 
-                        {required.concat(optional).map((field) => {
+                        {standard.concat(required.filter(field => !standard.includes(field))).map((field) => {
                           const isYearField = field === 'year';
                           const isNumericField = ['year', 'volume', 'number'].includes(field);
                           const isPageField = field === 'pages';
                           const fieldValue = updatedFields[field] || '';
                           const isInvalidYear = isYearField && fieldValue && 
                                               (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
+                          const isInvalidNumeric = (field === 'volume' || field === 'number') && fieldValue && !/^\d+$/.test(fieldValue);
                           const isInvalidPage = isPageField && fieldValue && 
                                               !(/^\d+$/.test(fieldValue) || /^\d+--?\d+$/.test(fieldValue));
                           const isMissingField = missingFields.includes(field);
@@ -1496,10 +1566,10 @@ const PersonalAccount = () => {
                                 width: '100%',
                                 '& .MuiInputBase-input': {
                                   textDecoration: isMissingField ? 'underline red' : 'none',
-                                  color: isMissingField || isInvalidYear || isInvalidPage ? 'error.main' : 'text.primary'
+                                  color: isMissingField || isInvalidYear || isInvalidNumeric || isInvalidPage ? 'error.main' : 'text.primary'
                                 },
                               }}
-                              error={isMissingField || isInvalidYear || isInvalidPage}
+                              error={isMissingField || isInvalidYear || isInvalidNumeric || isInvalidPage}
                               helperText={
                                 isMissingField 
                                   ? 'Обязательное поле, добавлено автоматически' 
@@ -1507,14 +1577,16 @@ const PersonalAccount = () => {
                                     ? isNaN(fieldValue) 
                                       ? 'Год должен быть числом' 
                                       : `Год не может быть больше текущего (${currentYear})`
-                                    : isInvalidPage
-                                      ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
-                                      : ''
+                                    : isInvalidNumeric
+                                      ? 'Поле должно содержать только число'
+                                      : isInvalidPage
+                                        ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
+                                        : ''
                               }
-                              inputProps={
-                                isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*' } :
-                                isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {}
-                              }
+                              inputProps={{
+                                ...(isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*', type: 'text' } : {}),
+                                ...(isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {})
+                              }}
                             />
                           );
                         })}
