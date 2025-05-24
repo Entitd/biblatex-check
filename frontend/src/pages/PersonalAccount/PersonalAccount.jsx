@@ -219,7 +219,7 @@ const PersonalAccount = () => {
           {file.download_link_edited && (
             <MenuItem 
               onClick={() => downloadFile(file.download_link_edited, `${file.name_file}_edited.bib`)}
-              sx={{ minWidth: '180px' }}
+            sx={{ minWidth: '180px' }}
             >
               Исправленный файл
             </MenuItem>
@@ -308,8 +308,10 @@ const PersonalAccount = () => {
   };
 
   const handleSourceChange = (index, field, value) => {
-    const numericFields = ['year', 'volume', 'number', 'pages'];
-    if (numericFields.includes(field)) {
+    const singleNumericFields = ['year', 'volume', 'number'];
+    const pageRangeField = ['page', 'pages'];
+    
+    if (singleNumericFields.includes(field)) {
       if (value === '' || /^\d+$/.test(value)) {
         const updatedSources = [...sources];
         updatedSources[index] = {
@@ -321,6 +323,17 @@ const PersonalAccount = () => {
         };
         setSources(updatedSources);
       }
+    } else if (pageRangeField.includes(field)) {
+      // Разрешаем любые символы при вводе, но показываем ошибку если формат неверный
+      const updatedSources = [...sources];
+      updatedSources[index] = {
+        ...updatedSources[index],
+        fields: {
+          ...updatedSources[index].fields,
+          [field]: value,
+        },
+      };
+      setSources(updatedSources);
     } else {
       const updatedSources = [...sources];
       updatedSources[index] = {
@@ -1329,42 +1342,48 @@ const PersonalAccount = () => {
                   <Typography variant="subtitle1">Источник {currentSourceIndex + 1}</Typography>
                   {currentFields.map((field) => {
                     const isYearField = field === 'year';
-                    const isNumericField = ['year', 'volume', 'number', 'pages'].includes(field);
+                    const isNumericField = ['year', 'volume', 'number'].includes(field);
+                    const isPageField = field === 'pages';
                     const fieldValue = sources[currentSourceIndex].fields[field] || '';
                     const isInvalidYear = isYearField && fieldValue && 
                                         (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
+                    const isInvalidPage = isPageField && fieldValue && 
+                                        !(/^\d+$/.test(fieldValue) || /^\d+[-]{1,2}\d+$/.test(fieldValue));
                     const requiredFields = getRequiredFieldsForType(sources[currentSourceIndex].type || 'misc');
                     const isMissingField = requiredFields.includes(field) && !fieldValue;
 
                     return (
                       <TextField
-                        key={field}
-                        fullWidth
-                        margin="dense"
-                        label={field}
-                        value={fieldValue}
-                        onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
-                        sx={{
-                          width: '100%',
-                          '& .MuiInputBase-input': {
-                            textDecoration: isMissingField ? 'underline red' : 'none',
-                            color: isMissingField || isInvalidYear ? 'error.main' : 'text.primary'
-                          },
-                        }}
-                        error={isMissingField || isInvalidYear}
-                        helperText={
-                          isMissingField 
-                            ? 'Обязательное поле' 
-                            : isInvalidYear
-                              ? isNaN(fieldValue) 
-                                ? 'Год должен быть числом' 
-                                : `Год не может быть больше текущего (${currentYear})`
-                              : isNumericField && fieldValue && !/^\d+$/.test(fieldValue)
-                                ? `${field} должен быть числом`
-                                : ''
-                        }
-                        inputProps={isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*' } : {}}
-                      />
+  key={field}
+  fullWidth
+  margin="dense"
+  label={field}
+  value={fieldValue}
+  onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
+  sx={{
+    width: '100%',
+    '& .MuiInputBase-input': {
+      textDecoration: isMissingField ? 'underline red' : 'none',
+      color: isMissingField || isInvalidYear || isInvalidPage ? 'error.main' : 'text.primary'
+    },
+  }}
+  error={isMissingField || isInvalidYear || isInvalidPage}
+  helperText={
+    isMissingField 
+      ? 'Обязательное поле' 
+      : isInvalidYear
+        ? isNaN(fieldValue) 
+          ? 'Год должен быть числом' 
+          : `Год не может быть больше текущего (${currentYear})`
+        : isInvalidPage
+          ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
+          : ''
+  }
+  inputProps={
+    isNumericField ? { inputMode: 'numeric' } : {}
+    // Убрали pattern для страниц, чтобы разрешить свободный ввод
+  }
+/>
                     );
                   })}
                 </Box>
@@ -1456,10 +1475,13 @@ const PersonalAccount = () => {
 
                         {required.concat(optional).map((field) => {
                           const isYearField = field === 'year';
-                          const isNumericField = ['year', 'volume', 'number', 'pages'].includes(field);
+                          const isNumericField = ['year', 'volume', 'number'].includes(field);
+                          const isPageField = field === 'pages';
                           const fieldValue = updatedFields[field] || '';
                           const isInvalidYear = isYearField && fieldValue && 
                                               (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
+                          const isInvalidPage = isPageField && fieldValue && 
+                                              !(/^\d+$/.test(fieldValue) || /^\d+--?\d+$/.test(fieldValue));
                           const isMissingField = missingFields.includes(field);
 
                           return (
@@ -1474,10 +1496,10 @@ const PersonalAccount = () => {
                                 width: '100%',
                                 '& .MuiInputBase-input': {
                                   textDecoration: isMissingField ? 'underline red' : 'none',
-                                  color: isMissingField || isInvalidYear ? 'error.main' : 'text.primary'
+                                  color: isMissingField || isInvalidYear || isInvalidPage ? 'error.main' : 'text.primary'
                                 },
                               }}
-                              error={isMissingField || isInvalidYear}
+                              error={isMissingField || isInvalidYear || isInvalidPage}
                               helperText={
                                 isMissingField 
                                   ? 'Обязательное поле, добавлено автоматически' 
@@ -1485,11 +1507,14 @@ const PersonalAccount = () => {
                                     ? isNaN(fieldValue) 
                                       ? 'Год должен быть числом' 
                                       : `Год не может быть больше текущего (${currentYear})`
-                                    : isNumericField && fieldValue && !/^\d+$/.test(fieldValue)
-                                      ? `${field} должен быть числом`
+                                    : isInvalidPage
+                                      ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
                                       : ''
                               }
-                              inputProps={isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*' } : {}}
+                              inputProps={
+                                isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*' } :
+                                isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {}
+                              }
                             />
                           );
                         })}
