@@ -105,7 +105,7 @@ const PersonalAccount = () => {
 
   const getBaseFieldsForType = (type) => {
     switch (type) {
-      case "article": return ["author", "title", "journal", "year", "volume", "number", "pages"];
+      case "article": return ["author", "title", "journal", "year", "volume", "number", "issue", "pages"];
       case "book": return ["author", "title", "year", "address", "publisher", "pages"];
       case "conference": return ["author", "title", "booktitle", "year", "pages", "organization"];
       case "techReport": return ["author", "title", "institution", "year"];
@@ -126,7 +126,7 @@ const PersonalAccount = () => {
   const getRequiredFieldsForType = (type, title = '') => {
     const baseRequiredFields = (() => {
       switch (type) {
-        case "article": return ["author", "title", "journal", "year", "volume", "number", "pages"];
+        case "article": return ["author", "title", "journal", "year", "pages"];
         case "book": return ["author", "title", "year", "address", "publisher", "pages"];
         case "conference": return ["author", "title", "booktitle", "year", "pages", "organization"];
         case "techReport": return ["author", "title", "institution", "year"];
@@ -320,7 +320,7 @@ const PersonalAccount = () => {
   };
 
   const handleSourceChange = (index, field, value) => {
-    const singleNumericFields = ['year', 'volume', 'number'];
+    const singleNumericFields = ['year', 'volume', 'number', 'issue'];
     const pageRangeField = ['page', 'pages'];
     
     const updatedSources = [...sources];
@@ -385,7 +385,21 @@ const PersonalAccount = () => {
     const yearErrors = nonEmptySources.filter(source => 
       source.fields.year && (isNaN(source.fields.year) || parseInt(source.fields.year) > currentYear)
     );
-  
+
+    const numericFieldErrors = nonEmptySources.map((source, idx) => {
+      const errors = [];
+      if (source.fields.volume && !/^\d+$/.test(source.fields.volume)) {
+        errors.push(`volume в источнике ${idx + 1} должно быть числом`);
+      }
+      if (source.fields.number && !/^\d+$/.test(source.fields.number)) {
+        errors.push(`number в источнике ${idx + 1} должно быть числом`);
+      }
+      if (source.fields.issue && !/^\d+$/.test(source.fields.issue)) {
+        errors.push(`issue в источнике ${idx + 1} должно быть числом`);
+      }
+      return errors.length > 0 ? errors.join(', ') : null;
+    }).filter(Boolean);
+
     const missingFieldsWarnings = nonEmptySources.map((source, idx) => {
       const requiredFields = getRequiredFieldsForType(source.type || 'misc', source.fields.title || '');
       const missing = requiredFields.filter(field => !source.fields[field] || source.fields[field].trim() === '');
@@ -394,10 +408,7 @@ const PersonalAccount = () => {
         : null;
     }).filter(Boolean);
   
-    if (missingFieldsWarnings.length > 0) {
-      setError(missingFieldsWarnings.join('; '));
-      return;
-    }
+    const allWarnings = [...numericFieldErrors, ...missingFieldsWarnings];
   
     try {
       const formattedSources = nonEmptySources.map((source, index) => ({
@@ -411,10 +422,11 @@ const PersonalAccount = () => {
         isGuest ? { sessionId, files: formattedSources } : { files: formattedSources }
       );
   
-      if (response.data?.errors || yearErrors.length > 0) {
-        const allWarnings = [
+      if (response.data?.errors || yearErrors.length > 0 || allWarnings.length > 0) {
+        const allMessages = [
           ...(response.data?.errors || []),
           ...yearErrors.map(() => `Проверьте год публикации (не может быть больше ${currentYear})`),
+          ...allWarnings
         ];
   
         setSnackbar({
@@ -593,13 +605,11 @@ const PersonalAccount = () => {
       if (source.fields.number && !/^\d+$/.test(source.fields.number)) {
         errors.push(`number в источнике ${idx + 1} должно быть числом`);
       }
+      if (source.fields.issue && !/^\d+$/.test(source.fields.issue)) {
+        errors.push(`issue в источнике ${idx + 1} должно быть числом`);
+      }
       return errors.length > 0 ? errors.join(', ') : null;
     }).filter(Boolean);
-  
-    if (numericFieldErrors.length > 0) {
-      setError(numericFieldErrors.join('; '));
-      return;
-    }
   
     const missingFieldsWarnings = nonEmptySources.map((source, idx) => {
       const requiredFields = getRequiredFieldsForType(source.type || 'misc', source.fields.title || '');
@@ -609,10 +619,7 @@ const PersonalAccount = () => {
         : null;
     }).filter(Boolean);
   
-    if (missingFieldsWarnings.length > 0) {
-      setError(missingFieldsWarnings.join('; '));
-      return;
-    }
+    const allWarnings = [...numericFieldErrors, ...missingFieldsWarnings];
   
     const formattedSources = nonEmptySources.map((source, index) => {
       const cleanedFields = { ...source.fields };
@@ -660,25 +667,25 @@ const PersonalAccount = () => {
       try {
         const revalidateResponse = await revalidateFile(editFileId);
         
-        const allWarnings = [];
+        const allMessages = [];
         
         if (yearErrors.length > 0) {
-          allWarnings.push(`Проверьте год публикации (не может быть больше ${currentYear})`);
+          allMessages.push(`Проверьте год публикации (не может быть больше ${currentYear})`);
         }
   
         if (revalidateResponse.errors) {
           if (typeof revalidateResponse.errors === 'string') {
-            allWarnings.push(...revalidateResponse.errors.split('\n').filter(line => line.trim()));
+            allMessages.push(...revalidateResponse.errors.split('\n').filter(line => line.trim()));
           } else if (Array.isArray(revalidateResponse.errors)) {
-            allWarnings.push(...revalidateResponse.errors);
+            allMessages.push(...revalidateResponse.errors);
           } else if (typeof revalidateResponse.errors === 'object') {
-            allWarnings.push(...Object.values(revalidateResponse.errors));
+            allMessages.push(...Object.values(revalidateResponse.errors));
           }
   
           const { sourceLines } = parseBibFile(content);
           const errorLines = {};
           
-          allWarnings.forEach(error => {
+          allMessages.forEach(error => {
             const match = error.match(/\(строка (\d+)\)$/);
             if (match) {
               const lineNumber = parseInt(match[1], 10) - 1;
@@ -701,7 +708,7 @@ const PersonalAccount = () => {
           setEditedLines(errorLines);
         }
   
-        if (allWarnings.length > 0) {
+        if (allMessages.length > 0 || allWarnings.length > 0) {
           setSnackbar({
             open: true,
             message: "Файл сохранён, но содержит предупреждения",
@@ -752,28 +759,28 @@ const PersonalAccount = () => {
         : `/api/get-bib-content?file_id=${file.id}`;
       const response = await (isGuest ? guestAxios : authAxios).get(endpoint);
       const content = response.data.content;
-      const { sources } = parseBibFile(content);
-      
+      const { sources, sourceLines } = parseBibFile(content); // Added sourceLines
+  
       let errors = {};
       let modifiedContent = content.split('\n');
   
       if (file.errors) {
         const errorsArray = Array.isArray(file.errors) ? file.errors : [file.errors];
-      
+  
         errorsArray.forEach(error => {
           if (typeof error === 'string') {
             const match = error.match(/\(строка (\d+)\)$/);
             if (match) {
               const lineNumber = parseInt(match[1], 10) - 1;
               let sourceIndex = -1;
-              
+  
               if (sourceLines && sourceLines.length > 0) {
                 sourceIndex = sourceLines.findIndex((startLine, idx) => {
                   const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
                   return lineNumber >= startLine && lineNumber < nextStartLine;
                 });
               }
-              
+  
               if (sourceIndex === -1 && sources.length > 0) sourceIndex = 0;
               if (sourceIndex !== -1 && sourceIndex < sources.length) {
                 errors[sourceIndex] = error.trim();
@@ -1406,55 +1413,98 @@ const PersonalAccount = () => {
               {sources.length > 0 && (
                 <Box my={2} sx={{ width: '100%' }}>
                   <Typography variant="subtitle1">Источник {currentSourceIndex + 1}</Typography>
-                  {currentFields.map((field) => {
-                    const isYearField = field === 'year';
-                    const isNumericField = ['year', 'volume', 'number'].includes(field);
-                    const isPageField = field === 'pages';
-                    const fieldValue = sources[currentSourceIndex].fields[field] || '';
-                    const isInvalidYear = isYearField && fieldValue && 
-                                        (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
-                    const isInvalidNumeric = (field === 'volume' || field === 'number') && fieldValue && !/^\d+$/.test(fieldValue);
-                    const isInvalidPage = isPageField && fieldValue && 
-                                        !(/^\d+$/.test(fieldValue) || /^\d+[-]{1,2}\d+$/.test(fieldValue));
-                    const requiredFields = getRequiredFieldsForType(sources[currentSourceIndex].type || 'misc', sources[currentSourceIndex].fields.title || '');
-                    const isMissingField = requiredFields.includes(field) && !fieldValue;
+                  {currentFields
+                    .filter(field => !['volume', 'number', 'issue'].includes(field))
+                    .map((field) => {
+                      const isYearField = field === 'year';
+                      const isNumericField = ['year'].includes(field);
+                      const isPageField = field === 'pages';
+                      const fieldValue = sources[currentSourceIndex].fields[field] || '';
+                      const isInvalidYear = isYearField && fieldValue && 
+                                          (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
+                      const isInvalidPage = isPageField && fieldValue && 
+                                          !(/^\d+$/.test(fieldValue) || /^\d+[-]{1,2}\d+$/.test(fieldValue));
+                      const requiredFields = getRequiredFieldsForType(sources[currentSourceIndex].type || 'misc', sources[currentSourceIndex].fields.title || '');
+                      const isMissingField = requiredFields.includes(field) && !fieldValue;
 
-                    return (
-                      <TextField
-                        key={field}
-                        fullWidth
-                        margin="dense"
-                        label={field}
-                        value={fieldValue}
-                        onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
-                        sx={{
-                          width: '100%',
-                          '& .MuiInputBase-input': {
-                            textDecoration: isMissingField ? 'underline red' : 'none',
-                            color: isMissingField || isInvalidYear || isInvalidNumeric || isInvalidPage ? 'error.main' : 'text.primary'
-                          },
-                        }}
-                        error={isMissingField || isInvalidYear || isInvalidNumeric || isInvalidPage}
-                        helperText={
-                          isMissingField 
-                            ? 'Обязательное поле' 
-                            : isInvalidYear
-                              ? isNaN(fieldValue) 
-                                ? 'Год должен быть числом' 
-                                : `Год не может быть больше текущего (${currentYear})`
-                              : isInvalidNumeric
-                                ? 'Поле должно содержать только число'
+                      return (
+                        <TextField
+                          key={field}
+                          fullWidth
+                          margin="dense"
+                          label={field}
+                          value={fieldValue}
+                          onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
+                          sx={{
+                            width: '100%',
+                            '& .MuiInputBase-input': {
+                              textDecoration: isMissingField ? 'underline red' : 'none',
+                              color: isMissingField || isInvalidYear || isInvalidPage ? 'error.main' : 'text.primary'
+                            },
+                          }}
+                          error={isMissingField || isInvalidYear || isInvalidPage}
+                          helperText={
+                            isMissingField 
+                              ? 'Обязательное поле' 
+                              : isInvalidYear
+                                ? isNaN(fieldValue) 
+                                  ? 'Год должен быть числом' 
+                                  : `Год не может быть больше текущего (${currentYear})`
                                 : isInvalidPage
                                   ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
                                   : ''
-                        }
-                        inputProps={{
-                          ...(isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*', type: 'text' } : {}),
-                          ...(isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {})
-                        }}
-                      />
-                    );
-                  })}
+                          }
+                          inputProps={{
+                            ...(isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*', type: 'text' } : {}),
+                            ...(isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {})
+                          }}
+                        />
+                      );
+                    })}
+                  {sources[currentSourceIndex].type === 'article' && (
+                    <Box sx={{ display: 'flex', gap: 2, mt: 1, flexWrap: 'wrap' }}>
+                      {['volume', 'number', 'issue'].map((field) => {
+                        const fieldValue = sources[currentSourceIndex].fields[field] || '';
+                        const isInvalidNumeric = fieldValue && !/^\d+$/.test(fieldValue);
+                        const hasPublicationFields = ['volume', 'number', 'issue'].some(f => 
+                          sources[currentSourceIndex].fields[f] && sources[currentSourceIndex].fields[f].trim() !== ''
+                        );
+
+                        return (
+                          <TextField
+                            key={field}
+                            margin="dense"
+                            label={field}
+                            value={fieldValue}
+                            onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
+                            sx={{
+                              flex: '1 1 30%',
+                              minWidth: '100px',
+                              '& .MuiInputBase-input': {
+                                color: isInvalidNumeric || (!hasPublicationFields && !fieldValue) ? 'error.main' : 'text.primary'
+                              },
+                            }}
+                            error={isInvalidNumeric || (!hasPublicationFields && !fieldValue)}
+                            helperText={
+                              isInvalidNumeric
+                                ? 'Поле должно содержать только число'
+                                : (!hasPublicationFields && !fieldValue)
+                                  ? 'Заполните хотя бы одно из этих полей'
+                                  : ''
+                            }
+                            inputProps={{
+                              inputMode: 'numeric',
+                              pattern: '[0-9]*',
+                              type: 'text'
+                            }}
+                          />
+                        );
+                      })}
+                      <Typography variant="caption" sx={{ width: '100%', color: 'text.secondary', mt: -1 }}>
+                        Возможно, у вашего источника могут отсутствовать некоторые из этих полей.
+                      </Typography>
+                    </Box>
+                  )}
                 </Box>
               )}
               <Box display="flex" justifyContent="space-between" mt={2} sx={{ width: '100%' }}>
@@ -1542,54 +1592,99 @@ const PersonalAccount = () => {
                           </Select>
                         </FormControl>
 
-                        {standard.concat(required.filter(field => !standard.includes(field))).map((field) => {
-                          const isYearField = field === 'year';
-                          const isNumericField = ['year', 'volume', 'number'].includes(field);
-                          const isPageField = field === 'pages';
-                          const fieldValue = updatedFields[field] || '';
-                          const isInvalidYear = isYearField && fieldValue && 
-                                              (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
-                          const isInvalidNumeric = (field === 'volume' || field === 'number') && fieldValue && !/^\d+$/.test(fieldValue);
-                          const isInvalidPage = isPageField && fieldValue && 
-                                              !(/^\d+$/.test(fieldValue) || /^\d+--?\d+$/.test(fieldValue));
-                          const isMissingField = missingFields.includes(field);
+                        {standard
+                          .filter(field => !['volume', 'number', 'issue'].includes(field))
+                          .concat(required.filter(field => !standard.includes(field) && !['volume', 'number', 'issue'].includes(field)))
+                          .map((field) => {
+                            const isYearField = field === 'year';
+                            const isNumericField = ['year'].includes(field);
+                            const isPageField = field === 'pages';
+                            const fieldValue = updatedFields[field] || '';
+                            const isInvalidYear = isYearField && fieldValue && 
+                                                (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
+                            const isInvalidPage = isPageField && fieldValue && 
+                                                !(/^\d+$/.test(fieldValue) || /^\d+--?\d+$/.test(fieldValue));
+                            const isMissingField = missingFields.includes(field);
 
-                          return (
-                            <TextField
-                              key={field}
-                              fullWidth
-                              margin="dense"
-                              label={field}
-                              value={fieldValue}
-                              onChange={(e) => handleSourceChange(index, field, e.target.value)}
-                              sx={{
-                                width: '100%',
-                                '& .MuiInputBase-input': {
-                                  textDecoration: isMissingField ? 'underline red' : 'none',
-                                  color: isMissingField || isInvalidYear || isInvalidNumeric || isInvalidPage ? 'error.main' : 'text.primary'
-                                },
-                              }}
-                              error={isMissingField || isInvalidYear || isInvalidNumeric || isInvalidPage}
-                              helperText={
-                                isMissingField 
-                                  ? 'Обязательное поле, добавлено автоматически' 
-                                  : isInvalidYear
-                                    ? isNaN(fieldValue) 
-                                      ? 'Год должен быть числом' 
-                                      : `Год не может быть больше текущего (${currentYear})`
-                                    : isInvalidNumeric
-                                      ? 'Поле должно содержать только число'
+                            return (
+                              <TextField
+                                key={field}
+                                fullWidth
+                                margin="dense"
+                                label={field}
+                                value={fieldValue}
+                                onChange={(e) => handleSourceChange(index, field, e.target.value)}
+                                sx={{
+                                  width: '100%',
+                                  '& .MuiInputBase-input': {
+                                    textDecoration: isMissingField ? 'underline red' : 'none',
+                                    color: isMissingField || isInvalidYear || isInvalidPage ? 'error.main' : 'text.primary'
+                                  },
+                                }}
+                                error={isMissingField || isInvalidYear || isInvalidPage}
+                                helperText={
+                                  isMissingField 
+                                    ? 'Обязательное поле, добавлено автоматически' 
+                                    : isInvalidYear
+                                      ? isNaN(fieldValue) 
+                                        ? 'Год должен быть числом' 
+                                        : `Год не может быть больше текущего (${currentYear})`
                                       : isInvalidPage
                                         ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
                                         : ''
-                              }
-                              inputProps={{
-                                ...(isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*', type: 'text' } : {}),
-                                ...(isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {})
-                              }}
-                            />
-                          );
-                        })}
+                                }
+                                inputProps={{
+                                  ...(isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*', type: 'text' } : {}),
+                                  ...(isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {})
+                                }}
+                              />
+                            );
+                          })}
+
+                        {source.type === 'article' && (
+                          <Box sx={{ display: 'flex', gap: 2, mt: 1, flexWrap: 'wrap' }}>
+                            {['volume', 'number', 'issue'].map((field) => {
+                              const fieldValue = updatedFields[field] || '';
+                              const isInvalidNumeric = fieldValue && !/^\d+$/.test(fieldValue);
+                              const hasPublicationFields = ['volume', 'number', 'issue'].some(f => 
+                                updatedFields[f] && updatedFields[f].trim() !== ''
+                              );
+
+                              return (
+                                <TextField
+                                  key={field}
+                                  margin="dense"
+                                  label={field}
+                                  value={fieldValue}
+                                  onChange={(e) => handleSourceChange(index, field, e.target.value)}
+                                  sx={{
+                                    flex: '1 1 30%',
+                                    minWidth: '100px',
+                                    '& .MuiInputBase-input': {
+                                      color: isInvalidNumeric || (!hasPublicationFields && !fieldValue) ? 'error.main' : 'text.primary'
+                                    },
+                                  }}
+                                  error={isInvalidNumeric || (!hasPublicationFields && !fieldValue)}
+                                  helperText={
+                                    isInvalidNumeric
+                                      ? 'Поле должно содержать только число'
+                                      : (!hasPublicationFields && !fieldValue)
+                                        ? 'Заполните хотя бы одно из этих полей'
+                                        : ''
+                                  }
+                                  inputProps={{
+                                    inputMode: 'numeric',
+                                    pattern: '[0-9]*',
+                                    type: 'text'
+                                  }}
+                                />
+                              );
+                            })}
+                            <Typography variant="caption" sx={{ width: '100%', color: 'text.secondary', mt: -1 }}>
+                              Возможно, у вашего источника могут отсутствовать некоторые из этих полей.
+                            </Typography>
+                          </Box>
+                        )}
 
                         {optional.map((field) => (
                           <Box key={field} display="flex" alignItems="center" sx={{ width: '100%' }}>
