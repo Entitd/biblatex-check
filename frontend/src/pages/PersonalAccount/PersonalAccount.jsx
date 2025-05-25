@@ -173,7 +173,7 @@ const PersonalAccount = () => {
       if (!fileUrl) return;
       try {
         const response = await (isGuest ? guestAxios : authAxios).get(
-          `/download/${fileUrl}${isGuest ? `?sessionId=${sessionId}` : ''}`,
+          `${fileUrl}${isGuest ? `?sessionId=${sessionId}` : ''}`,
           { responseType: 'blob' }
         );
         const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -866,7 +866,7 @@ const PersonalAccount = () => {
     if (!fileUrl) return;
     try {
       const response = await (isGuest ? guestAxios : authAxios).get(
-        `/download/${fileUrl}${isGuest ? `?sessionId=${sessionId}` : ''}`,
+        `${fileUrl}${isGuest ? `?sessionId=${sessionId}` : ''}`,
         { responseType: 'blob' }
       );
       const url = window.URL.createObjectURL(new Blob([response.data]));
