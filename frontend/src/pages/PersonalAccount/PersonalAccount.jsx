@@ -767,56 +767,61 @@ const PersonalAccount = () => {
 
   const handleShowErrors = async (file) => {
     try {
-      const endpoint = isGuest
-        ? `/api/guest/get-bib-content?file_id=${file.id}&sessionId=${sessionId}`
-        : `/api/get-bib-content?file_id=${file.id}`;
-      const response = await (isGuest ? guestAxios : authAxios).get(endpoint);
-      const content = response.data.content;
-      const { sources, sourceLines } = parseBibFile(content); // Added sourceLines
-  
-      let errors = {};
-      let modifiedContent = content.split('\n');
-  
-      if (file.errors) {
-        const errorsArray = Array.isArray(file.errors) ? file.errors : [file.errors];
-  
-        errorsArray.forEach(error => {
-          if (typeof error === 'string') {
-            const match = error.match(/\(строка (\d+)\)$/);
-            if (match) {
-              const lineNumber = parseInt(match[1], 10) - 1;
-              let sourceIndex = -1;
-  
-              if (sourceLines && sourceLines.length > 0) {
-                sourceIndex = sourceLines.findIndex((startLine, idx) => {
-                  const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
-                  return lineNumber >= startLine && lineNumber < nextStartLine;
-                });
-              }
-  
-              if (sourceIndex === -1 && sources.length > 0) sourceIndex = 0;
-              if (sourceIndex !== -1 && sourceIndex < sources.length) {
-                errors[sourceIndex] = error.trim();
-              }
-            }
-          }
-        });
-      }
-  
-      setEditedLines(errors);
-      setEditContent(modifiedContent.join('\n'));
-      setErrorFileId(file.id);
-      setErrorModalOpen(true);
+        const endpoint = isGuest
+            ? `/api/guest/get-bib-content?file_id=${file.id}&sessionId=${sessionId}`
+            : `/api/get-bib-content?file_id=${file.id}`;
+        const response = await (isGuest ? guestAxios : authAxios).get(endpoint);
+        const content = response.data.content;
+        const { sources, sourceLines } = parseBibFile(content);
+
+        console.log("File errors:", file.errors); // Отладка
+        console.log("Parsed content:", content);
+        console.log("Source lines:", sourceLines);
+
+        let errors = {};
+        let modifiedContent = content.split('\n');
+
+        if (file.errors) {
+            const errorsArray = Array.isArray(file.errors) ? file.errors : [file.errors];
+            errorsArray.forEach((error, idx) => {
+                if (typeof error === 'string') {
+                    const match = error.match(/\(строка (\d+)\)$/);
+                    if (match) {
+                        const lineNumber = parseInt(match[1], 10) - 1;
+                        let sourceIndex = -1;
+                        if (sourceLines && sourceLines.length > 0) {
+                            sourceIndex = sourceLines.findIndex((startLine, idx) => {
+                                const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
+                                return lineNumber >= startLine && lineNumber < nextStartLine;
+                            });
+                        }
+                        if (sourceIndex === -1 && sources.length > 0) sourceIndex = 0;
+                        if (sourceIndex !== -1 && sourceIndex < sources.length) {
+                            errors[sourceIndex] = error.trim();
+                        }
+                    } else {
+                        // Добавляем ошибки без номера строки
+                        errors[`general_${idx}`] = error.trim();
+                    }
+                }
+            });
+        }
+
+        console.log("Edited lines:", errors); // Отладка
+        setEditedLines(errors);
+        setEditContent(modifiedContent.join('\n'));
+        setErrorFileId(file.id);
+        setErrorModalOpen(true);
     } catch (error) {
-      if (error.response?.status === 401 && !isGuest) {
-        await refreshToken();
-        handleShowErrors(file);
-      } else {
-        console.error("Error fetching file content:", error.response?.data || error.message);
-        setError("Не удалось загрузить содержимое файла: " + (error.response?.data?.detail || error.message));
-      }
+        if (error.response?.status === 401 && !isGuest) {
+            await refreshToken();
+            handleShowErrors(file);
+        } else {
+            console.error("Error fetching file content:", error.response?.data || error.message);
+            setError("Не удалось загрузить содержимое файла: " + (error.response?.data?.detail || error.message));
+        }
     }
-  };
+};
 
   const handleContentChange = (e) => {
     const newContent = e.target.value;
@@ -1735,70 +1740,74 @@ const PersonalAccount = () => {
         </Modal>
 
         <Modal open={errorModalOpen} onClose={() => setErrorModalOpen(false)}>
-          <Box sx={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '80%',
-            maxHeight: '80vh',
-            bgcolor: 'background.paper',
-            boxShadow: 24,
-            p: 4,
-            overflow: 'auto'
-          }}>
-            <Typography variant="h6" gutterBottom>
-              Ошибки в файле: {files.find(f => f.id === errorFileId)?.name_file}
-            </Typography>
-            
-            {Object.keys(editedLines).length > 0 && (
-              <>
+    <Box sx={{
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: '80%',
+        maxHeight: '80vh',
+        bgcolor: 'background.paper',
+        boxShadow: 24,
+        p: 4,
+        overflow: 'auto'
+    }}>
+        <Typography variant="h6" gutterBottom>
+            Ошибки в файле: {files.find(f => f.id === errorFileId)?.name_file}
+        </Typography>
+        
+        {Object.keys(editedLines).length > 0 ? (
+            <>
                 <Typography variant="subtitle1" color="error" gutterBottom>
-                  Обнаруженные ошибки:
+                    Обнаруженные ошибки:
                 </Typography>
                 <Box component="ul" sx={{ pl: 2, mb: 2 }}>
-                  {Object.values(editedLines).map((error, i) => (
-                    <Typography key={i} component="li" color="error">
-                      {error}
-                    </Typography>
-                  ))}
+                    {Object.entries(editedLines).map(([key, error], i) => (
+                        <Typography key={i} component="li" color="error">
+                            {error}
+                        </Typography>
+                    ))}
                 </Box>
-              </>
-            )}
-
-            <Typography variant="subtitle1" gutterBottom>
-              Содержимое файла:
+            </>
+        ) : (
+            <Typography variant="subtitle1" color="warning" gutterBottom>
+                Ошибки не удалось разобрать. Количество ошибок: {files.find(f => f.id === errorFileId)?.number_of_errors || 0}.
             </Typography>
-            <Paper sx={{ 
-              p: 2, 
-              backgroundColor: isDarkMode ? 'grey.900' : 'grey.50',
-              fontFamily: 'monospace',
-              whiteSpace: 'pre-wrap'
-            }}>
-              {editContent.split('\n').map((line, i) => (
-                <Typography 
-                  key={i} 
-                  component="div"
-                  sx={{ 
-                    color: editedLines[i] ? 'error.main' : 'text.primary',
-                    fontWeight: editedLines[i] ? 'bold' : 'normal'
-                  }}
-                >
-                  {line}
-                </Typography>
-              ))}
-            </Paper>
+        )}
 
-            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-              <Button 
+        <Typography variant="subtitle1" gutterBottom>
+            Содержимое файла:
+        </Typography>
+        <Paper sx={{ 
+            p: 2, 
+            backgroundColor: isDarkMode ? 'grey.900' : 'grey.50',
+            fontFamily: 'monospace',
+            whiteSpace: 'pre-wrap'
+        }}>
+            {editContent.split('\n').map((line, i) => (
+                <Typography 
+                    key={i} 
+                    component="div"
+                    sx={{ 
+                        color: editedLines[i] ? 'error.main' : 'text.primary',
+                        fontWeight: editedLines[i] ? 'bold' : 'normal'
+                    }}
+                >
+                    {line}
+                </Typography>
+            ))}
+        </Paper>
+
+        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button 
                 variant="contained" 
                 onClick={() => setErrorModalOpen(false)}
-              >
+            >
                 Закрыть
-              </Button>
-            </Box>
-          </Box>
-        </Modal>
+            </Button>
+        </Box>
+    </Box>
+</Modal>
 
         <input
           id="upload-bib-file"
