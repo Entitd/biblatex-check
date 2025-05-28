@@ -265,36 +265,57 @@ const PersonalAccount = () => {
     const sources = [];
     const sourceLines = [];
     let currentSource = { type: '', fields: {}, lineStart: 0 };
-  
+
+    console.log("Parsing BibTeX content:", content); // Отладка
+
     lines.forEach((line, idx) => {
-      line = line.trim();
-      if (line.startsWith('@')) {
-        if (currentSource.type) {
-          sources.push({ ...currentSource, lineEnd: idx - 1 });
+        line = line.trim();
+        if (line.startsWith('@')) {
+            if (currentSource.type) {
+                sources.push({ ...currentSource, lineEnd: idx - 1 });
+            }
+            const match = line.match(/@(\w+)\s*{([^,]+),?/);
+            if (match) {
+                currentSource = { 
+                    type: match[1].toLowerCase(), 
+                    fields: {},
+                    lineStart: idx,
+                    id: match[2].trim()
+                };
+                sourceLines.push(idx);
+                console.log(`Found entry: type=${match[1]}, id=${match[2]}`); // Отладка
+            }
+        } else if (currentSource.type && line.includes('=')) {
+            const match = line.match(/^\s*(\w+)\s*=\s*\{([^}]*)\}/);
+            if (match) {
+                const key = match[1].trim();
+                const value = match[2].trim();
+                currentSource.fields[key] = value;
+                console.log(`Parsed field: ${key} = ${value}`); // Отладка
+            } else {
+                // Обработка случаев без фигурных скобок (для совместимости)
+                const [key, value] = line.split('=').map(s => s.trim());
+                if (key && value) {
+                    currentSource.fields[key] = value.replace(/[,;]?\s*$/, '').trim();
+                    console.log(`Parsed non-braced field: ${key} = ${value}`); // Отладка
+                }
+            }
+        } else if (line.includes('}') && currentSource.type) {
+            sources.push({ ...currentSource, lineEnd: idx });
+            currentSource = { type: '', fields: {}, lineStart: 0 };
+            console.log("Closed entry:", currentSource); // Отладка
         }
-        const match = line.match(/@(\w+)\s*{([^,]+),?/);
-        if (match) {
-          currentSource = { 
-            type: match[1].toLowerCase(), 
-            fields: {},
-            lineStart: idx,
-            id: match[2].trim()
-          };
-          sourceLines.push(idx);
-        }
-      } else if (currentSource.type && line.includes('=')) {
-        const [key, value] = line.split('=').map(s => s.trim());
-        if (key && value) {
-          currentSource.fields[key] = value.replace(/^\{/, '').replace(/[,}].*$/, '').trim();
-        }
-      } else if (line.includes('}') && currentSource.type) {
-        sources.push({ ...currentSource, lineEnd: idx });
-        currentSource = { type: '', fields: {} };
-      }
     });
-  
+
+    // Добавляем последнюю запись, если она не закрыта
+    if (currentSource.type) {
+        sources.push({ ...currentSource, lineEnd: lines.length - 1 });
+        console.log("Added final entry:", currentSource); // Отладка
+    }
+
+    console.log("Parsed sources:", sources); // Отладка
     return { sources, sourceLines };
-  };
+};
 
   const handleTypeChange = (index, type, isEditing = false) => {
     const updatedSources = [...sources];
