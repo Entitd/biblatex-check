@@ -525,30 +525,67 @@ const PersonalAccount = () => {
       const response = await (isGuest ? guestAxios : authAxios).get(endpoint);
       const content = response.data.content;
       const { sources: parsedSources, sourceLines } = parseBibFile(content);
-     
+  
       let errorLines = {};
       if (file.errors) {
-        const errorsArray = Array.isArray(file.errors) ? file.errors : [file.errors];
-      
-        errorsArray.forEach(error => {
-          if (typeof error === 'string') {
-            const match = error.match(/\(строка (\d+)\)$/);
-            if (match) {
-              const lineNumber = parseInt(match[1], 10) - 1;
-              let sourceIndex = -1;
-            
-              if (sourceLines && sourceLines.length > 0) {
-                sourceIndex = sourceLines.findIndex((startLine, idx) => {
-                  const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
-                  return lineNumber >= startLine && lineNumber < nextStartLine;
-                });
-              }
-            
-              if (sourceIndex === -1 && parsedSources.length > 0) sourceIndex = 0;
-              if (sourceIndex !== -1 && sourceIndex < parsedSources.length) {
-                errorLines[sourceIndex] = error.trim();
-              }
+        console.log("File errors (raw):", file.errors);
+  
+        let errorMessages = [];
+        if (Array.isArray(file.errors)) {
+          errorMessages = file.errors.map(msg => msg.trim()).filter(msg => msg);
+        } else if (typeof file.errors === 'string') {
+          errorMessages = file.errors.split('\n').map(msg => msg.trim()).filter(msg => msg);
+        } else {
+          console.warn("Unexpected file.errors format:", file.errors);
+        }
+  
+        errorMessages.forEach((error, idx) => {
+          console.log(`Parsing error ${idx}:`, error);
+  
+          // Извлечение поля из ошибки
+          let field = null;
+          // Проверяем, содержит ли ошибка слово 'author' (в любом регистре)
+          if (error.toLowerCase().includes("'author'")) {
+            field = "author";
+          } else {
+            const fieldMatch = error.match(/поле '([^']+)'/i);
+            if (fieldMatch) {
+              field = fieldMatch[1].toLowerCase();
             }
+          }
+  
+          const idMatch = error.match(/записи '([^']+)'/i);
+          const lineMatch = error.match(/\(строка (\d+)\)/i);
+          const recordId = idMatch ? idMatch[1] : null;
+          const lineNumber = lineMatch ? parseInt(lineMatch[1], 10) - 1 : null;
+  
+          if (!field) {
+            console.warn(`No field found in error: ${error}`);
+            if (!errorLines["general"]) errorLines["general"] = [];
+            errorLines["general"].push(error.trim());
+            return;
+          }
+  
+          let sourceIndex = -1;
+          if (lineNumber !== null && sourceLines && sourceLines.length > 0) {
+            sourceIndex = sourceLines.findIndex((startLine, idx) => {
+              const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
+              return lineNumber >= startLine && lineNumber < nextStartLine;
+            });
+          }
+          if (sourceIndex === -1 && recordId) {
+            sourceIndex = parsedSources.findIndex(source => source.id === recordId);
+          }
+          if (sourceIndex === -1 && parsedSources.length > 0) {
+            sourceIndex = 0; // Fallback
+          }
+  
+          if (sourceIndex !== -1 && sourceIndex < parsedSources.length) {
+            if (!errorLines[sourceIndex]) errorLines[sourceIndex] = {};
+            errorLines[sourceIndex][field] = error.trim();
+          } else {
+            if (!errorLines["general"]) errorLines["general"] = [];
+            errorLines["general"].push(error.trim());
           }
         });
       }
@@ -556,7 +593,7 @@ const PersonalAccount = () => {
       const sourcesWithRequiredFields = parsedSources.map((source, index) => {
         const requiredFields = getRequiredFieldsForType(source.type || 'misc', source.fields.title || '');
         const fieldsWithRequired = { ...source.fields };
-        
+  
         requiredFields.forEach(field => {
           if (!fieldsWithRequired[field]) {
             fieldsWithRequired[field] = '';
@@ -566,9 +603,12 @@ const PersonalAccount = () => {
         return {
           ...source,
           fields: fieldsWithRequired,
-          errors: errorLines[index] || []
+          errors: errorLines[index] || {}
         };
       });
+  
+      console.log("Sources with errors:", sourcesWithRequiredFields);
+      console.log("Error lines:", errorLines);
   
       setSources(sourcesWithRequiredFields);
       setCurrentSourceIndex(0);
@@ -1549,217 +1589,241 @@ const PersonalAccount = () => {
         </Modal>
 
         <Modal
-          open={editModalOpen}
-          onClose={() => setEditModalOpen(false)}
-          closeAfterTransition
-          slots={{ backdrop: Backdrop }}
-          slotProps={{
-            backdrop: {
-              timeout: 500,
-              sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
-            },
-          }}
-        >
-          <Fade in={editModalOpen}>
-            <Paper
-              sx={{
-                width: { xs: '90%', sm: '80%', md: '70%' },
-                p: 3,
-                position: 'fixed',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                borderRadius: '15px',
-                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-                background: 'background.paper',
-                height: '90vh',
-                maxHeight: 'none',
-                display: 'flex',
-                flexDirection: 'column',
-                zIndex: 1300,
-                overflowY: 'auto',
-              }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
-                Редактировать bib-файл
-              </Typography>
-              {sources.length > 0 && (
-                <Box sx={{ flex: 1, overflowY: 'auto', mb: 2, width: '100%' }}>
-                  {sources.map((source, index) => {
-                    const { standard, required, optional } = getAllFieldsFromSource(source, source.type || 'misc');
-                    const missingFields = required.filter(field => !source.fields[field]);
+  open={editModalOpen}
+  onClose={() => setEditModalOpen(false)}
+  closeAfterTransition
+  slots={{ backdrop: Backdrop }}
+  slotProps={{
+    backdrop: {
+      timeout: 500,
+      sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
+    },
+  }}
+>
+  <Fade in={editModalOpen}>
+    <Paper
+      sx={{
+        width: { xs: '90%', sm: '80%', md: '70%' },
+        p: 3,
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        borderRadius: '15px',
+        boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+        background: 'background.paper',
+        height: '90vh',
+        maxHeight: 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 1300,
+        overflowY: 'auto',
+      }}
+    >
+      <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
+        Редактировать bib-файл
+      </Typography>
+      {sources.length > 0 && (
+        <Box sx={{ flex: 1, overflowY: 'auto', mb: 2, width: '100%' }}>
+          {sources.map((source, index) => {
+            const { standard, required, optional } = getAllFieldsFromSource(source, source.type || 'misc');
+            const missingFields = required.filter(field => !source.fields[field] || source.fields[field].trim() === '');
+            const sourceErrors = source.errors || {};
+            const hasError = Object.keys(sourceErrors).length > 0 || missingFields.length > 0;
+            const generalErrors = editedLines["general"] || [];
 
-                    const updatedFields = { ...source.fields };
-                    missingFields.forEach(field => {
-                      if (!updatedFields[field]) {
-                        updatedFields[field] = '';
-                      }
-                    });
+            return (
+              <Box
+                key={index}
+                mb={2}
+                sx={{
+                  width: '100%',
+                  border: hasError ? '2px solid red' : 'none',
+                  borderRadius: '4px',
+                  padding: '8px'
+                }}
+              >
+                <Typography
+                  variant="subtitle1"
+                  sx={{
+                    fontWeight: 'bold',
+                    color: hasError ? 'error.main' : 'text.primary'
+                  }}
+                >
+                  Источник {index + 1} {hasError && '(Содержит ошибки)'}
+                </Typography>
+                <FormControl fullWidth margin="normal" sx={{ width: '100%' }}>
+                  <InputLabel id={`type-label-${index}`}>Тип записи</InputLabel>
+                  <Select
+                    labelId={`type-label-${index}`}
+                    value={source.type || ''}
+                    onChange={(e) => handleTypeChange(index, e.target.value, true)}
+                    sx={{ width: '100%', ...(hasError && { borderColor: 'error.main' }) }}
+                  >
+                    <MenuItem value="article">Article</MenuItem>
+                    <MenuItem value="book">Book</MenuItem>
+                    <MenuItem value="conference">Conference</MenuItem>
+                    <MenuItem value="techReport">Tech Report</MenuItem>
+                    <MenuItem value="inProceedings">In Proceedings</MenuItem>
+                    <MenuItem value="online">Online</MenuItem>
+                    <MenuItem value="manual">Manual</MenuItem>
+                    <MenuItem value="misc">Misc</MenuItem>
+                  </Select>
+                </FormControl>
 
-                    const hasError = editedLines[index] !== undefined || missingFields.length > 0;
-                    const errorMessage = editedLines[index] || (missingFields.length > 0 ? `Отсутствуют обязательные поля: ${missingFields.join(', ')}` : '');
+                {standard
+                  .filter(field => !['volume', 'number', 'issue'].includes(field))
+                  .concat(required.filter(field => !standard.includes(field) && !['volume', 'number', 'issue'].includes(field)))
+                  .map((field) => {
+                    const isYearField = field === 'year';
+                    const isNumericField = ['year'].includes(field);
+                    const isPageField = field === 'pages';
+                    const fieldValue = source.fields[field] || '';
+                    const isInvalidYear = isYearField && fieldValue &&
+                      (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
+                    const isInvalidPage = isPageField && fieldValue &&
+                      !(/^\d+$/.test(fieldValue) || /^\d+--?\d+$/.test(fieldValue));
+                    const isMissingField = missingFields.includes(field);
+                    const fieldError = sourceErrors[field];
 
                     return (
-                      <Box key={index} mb={2} sx={{ width: '100%', border: hasError ? '2px solid red' : 'none', borderRadius: '4px', padding: '8px' }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: hasError ? 'error.main' : 'text.primary' }}>
-                          Источник {index + 1} {hasError && '(Содержит ошибки)'}
-                        </Typography>
-                        <FormControl fullWidth margin="normal" sx={{ width: '100%' }}>
-                          <InputLabel id={`type-label-${index}`}>Тип записи</InputLabel>
-                          <Select
-                            labelId={`type-label-${index}`}
-                            value={source.type || ''}
-                            onChange={(e) => handleTypeChange(index, e.target.value, true)}
-                            sx={{ width: '100%', ...(hasError && { borderColor: 'error.main' }) }}
-                          >
-                            <MenuItem value="article">Article</MenuItem>
-                            <MenuItem value="book">Book</MenuItem>
-                            <MenuItem value="conference">Conference</MenuItem>
-                            <MenuItem value="techReport">Tech Report</MenuItem>
-                            <MenuItem value="inProceedings">In Proceedings</MenuItem>
-                            <MenuItem value="online">Online</MenuItem>
-                            <MenuItem value="manual">Manual</MenuItem>
-                            <MenuItem value="misc">Misc</MenuItem>
-                          </Select>
-                        </FormControl>
-
-                        {standard
-                          .filter(field => !['volume', 'number', 'issue'].includes(field))
-                          .concat(required.filter(field => !standard.includes(field) && !['volume', 'number', 'issue'].includes(field)))
-                          .map((field) => {
-                            const isYearField = field === 'year';
-                            const isNumericField = ['year'].includes(field);
-                            const isPageField = field === 'pages';
-                            const fieldValue = updatedFields[field] || '';
-                            const isInvalidYear = isYearField && fieldValue && 
-                                                (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
-                            const isInvalidPage = isPageField && fieldValue && 
-                                                !(/^\d+$/.test(fieldValue) || /^\d+--?\d+$/.test(fieldValue));
-                            const isMissingField = missingFields.includes(field);
-
-                            return (
-                              <TextField
-                                key={field}
-                                fullWidth
-                                margin="dense"
-                                label={field}
-                                value={fieldValue}
-                                onChange={(e) => handleSourceChange(index, field, e.target.value)}
-                                sx={{
-                                  width: '100%',
-                                  '& .MuiInputBase-input': {
-                                    textDecoration: isMissingField ? 'underline red' : 'none',
-                                    color: isMissingField || isInvalidYear || isInvalidPage ? 'error.main' : 'text.primary'
-                                  },
-                                }}
-                                error={isMissingField || isInvalidYear || isInvalidPage}
-                                helperText={
-                                  isMissingField 
-                                    ? 'Обязательное поле, добавлено автоматически' 
-                                    : isInvalidYear
-                                      ? isNaN(fieldValue) 
-                                        ? 'Год должен быть числом' 
-                                        : `Год не может быть больше текущего (${currentYear})`
-                                      : isInvalidPage
-                                        ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
-                                        : ''
-                                }
-                                inputProps={{
-                                  ...(isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*', type: 'text' } : {}),
-                                  ...(isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {})
-                                }}
-                              />
-                            );
-                          })}
-
-                        {source.type === 'article' && (
-                          <Box sx={{ display: 'flex', gap: 2, mt: 1, flexWrap: 'wrap' }}>
-                            {['volume', 'number', 'issue'].map((field) => {
-                              const fieldValue = updatedFields[field] || '';
-                              const isInvalidNumeric = fieldValue && !/^\d+$/.test(fieldValue);
-                              const hasPublicationFields = ['volume', 'number', 'issue'].some(f => 
-                                updatedFields[f] && updatedFields[f].trim() !== ''
-                              );
-
-                              return (
-                                <TextField
-                                  key={field}
-                                  margin="dense"
-                                  label={field}
-                                  value={fieldValue}
-                                  onChange={(e) => handleSourceChange(index, field, e.target.value)}
-                                  sx={{
-                                    flex: '1 1 30%',
-                                    minWidth: '100px',
-                                    '& .MuiInputBase-input': {
-                                      color: isInvalidNumeric || (!hasPublicationFields && !fieldValue) ? 'error.main' : 'text.primary'
-                                    },
-                                  }}
-                                  error={isInvalidNumeric || (!hasPublicationFields && !fieldValue)}
-                                  helperText={
-                                    isInvalidNumeric
-                                      ? 'Поле должно содержать только число'
-                                      : (!hasPublicationFields && !fieldValue)
-                                        ? 'Заполните хотя бы одно из этих полей'
-                                        : ''
-                                  }
-                                  inputProps={{
-                                    inputMode: 'numeric',
-                                    pattern: '[0-9]*',
-                                    type: 'text'
-                                  }}
-                                />
-                              );
-                            })}
-                            <Typography variant="caption" sx={{ width: '100%', color: 'text.secondary', mt: -1 }}>
-                              Возможно, у вашего источника могут отсутствовать некоторые из этих полей.
-                            </Typography>
-                          </Box>
-                        )}
-
-                        {optional.map((field) => (
-                          <Box key={field} display="flex" alignItems="center" sx={{ width: '100%' }}>
-                            <TextField
-                              fullWidth
-                              margin="dense"
-                              label={`${field} (необязательное)`}
-                              value={updatedFields[field] || ''}
-                              onChange={(e) => handleSourceChange(index, field, e.target.value)}
-                              sx={{
-                                width: '100%',
-                                '& .MuiInputBase-input': {
-                                  color: 'text.secondary',
-                                },
-                              }}
-                              helperText="Это поле не является стандартным для данного типа"
-                            />
-                            <IconButton
-                              onClick={() => {
-                                const updatedSources = [...sources];
-                                delete updatedSources[index].fields[field];
-                                setSources(updatedSources);
-                              }}
-                              sx={{ ml: 1 }}
-                            >
-                              <ClearIcon />
-                            </IconButton>
-                          </Box>
-                        ))}
-                      </Box>
+                      <TextField
+                        key={field}
+                        fullWidth
+                        margin="dense"
+                        label={field}
+                        value={fieldValue}
+                        onChange={(e) => handleSourceChange(index, field, e.target.value)}
+                        sx={{
+                          width: '100%',
+                          '& .MuiInputBase-input': {
+                            textDecoration: isMissingField || fieldError ? 'underline red wavy' : 'none',
+                            color: isMissingField || isInvalidYear || isInvalidPage || fieldError
+                              ? 'error.main'
+                              : 'text.primary'
+                          },
+                        }}
+                        error={isMissingField || isInvalidYear || isInvalidPage || !!fieldError}
+                        helperText={
+                          fieldError
+                            ? fieldError.includes('author')
+                              ? 'Ожидается формат: surname, name [patronymic] или surname, name [patronymic] and surname, name [patronymic]'
+                              : fieldError.replace(/^(Неверный формат поля '[^']+'|Отсутствует обязательное поле '[^']+').*?(?=:|$)(\:.*)?$/, (match, p1, p2) => p2 ? p2.substring(1).trim() : 'Ошибка в поле')
+                            : isMissingField
+                              ? 'Обязательное поле, добавлено автоматически'
+                              : isInvalidYear
+                                ? (isNaN(fieldValue) ? 'Год должен быть числом' : `Год не может быть больше текущего (${currentYear})`)
+                                : isInvalidPage
+                                  ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
+                                  : ''
+                        }
+                        inputProps={{
+                          ...(isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*', type: 'text' } : {}),
+                          ...(isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {})
+                        }}
+                      />
                     );
                   })}
-                </Box>
-              )}
-              {/* <Box display="flex" justifyContent="space-between" mt={2} sx={{ width: '100%' }}>
-                <Button variant="outlined" onClick={() => navigateSource('prev')} disabled={currentSourceIndex === 0} sx={{ width: '48%' }}>Предыдущий</Button>
-                <Button variant="outlined" onClick={() => navigateSource('next')} disabled={currentSourceIndex === sources.length - 1} sx={{ width: '48%' }}>Следующий</Button>
-              </Box> */}
-              <Button fullWidth variant="contained" onClick={addSource} sx={{ mt: 2, width: '100%' }}>Добавить источник</Button>
-              <Button fullWidth variant="outlined" onClick={handleSaveEditedFile} sx={{ mt: 2, width: '100%' }}>Сохранить</Button>
-            </Paper>
-          </Fade>
-        </Modal>
 
+                {source.type === 'article' && (
+                  <Box sx={{ display: 'flex', gap: 2, mt: 1, flexWrap: 'wrap' }}>
+                    {['volume', 'number', 'issue'].map((field) => {
+                      const fieldValue = source.fields[field] || '';
+                      const isInvalidNumeric = fieldValue && !/^\d+$/.test(fieldValue);
+                      const hasPublicationFields = ['volume', 'number', 'issue'].some(f =>
+                        source.fields[f] && source.fields[f].trim() !== ''
+                      );
+                      const fieldError = sourceErrors[field];
+
+                      return (
+                        <TextField
+                          key={field}
+                          margin="dense"
+                          label={field}
+                          value={fieldValue}
+                          onChange={(e) => handleSourceChange(index, field, e.target.value)}
+                          sx={{
+                            flex: '1 1 30%',
+                            minWidth: '100px',
+                            '& .MuiInputBase-input': {
+                              textDecoration: fieldError ? 'underline red wavy' : 'none',
+                              color: isInvalidNumeric || (!hasPublicationFields && !fieldValue) || fieldError
+                                ? 'error.main'
+                                : 'text.primary'
+                            },
+                          }}
+                          error={isInvalidNumeric || (!hasPublicationFields && !fieldValue) || !!fieldError}
+                          helperText={
+                            fieldError
+                              ? fieldError.replace(/^(Неверный формат поля '[^']+'|Отсутствует обязательное поле '[^']+').*?(?=:|$)(\:.*)?$/, (match, p1, p2) => p2 ? p2.substring(1).trim() : 'Ошибка в поле')
+                              : isInvalidNumeric
+                                ? 'Поле должно содержать только число'
+                                : (!hasPublicationFields && !fieldValue)
+                                  ? 'Заполните хотя бы одно из этих полей'
+                                  : ''
+                          }
+                          inputProps={{
+                            inputMode: 'numeric',
+                            pattern: '[0-9]*',
+                            type: 'text'
+                          }}
+                        />
+                      );
+                    })}
+                    <Typography variant="caption" sx={{ width: '100%', color: 'text.secondary', mt: -1 }}>
+                      Возможно, у вашего источника могут отсутствовать некоторые из этих полей.
+                    </Typography>
+                  </Box>
+                )}
+
+                {optional.map((field) => (
+                  <Box key={field} display="flex" alignItems="center" sx={{ width: '100%' }}>
+                    <TextField
+                      fullWidth
+                      margin="dense"
+                      label={`${field} (необязательное)`}
+                      value={source.fields[field] || ''}
+                      onChange={(e) => handleSourceChange(index, field, e.target.value)}
+                      sx={{
+                        width: '100%',
+                        '& .MuiInputBase-input': {
+                          color: 'text.secondary',
+                        },
+                      }}
+                      helperText="Это поле не является стандартным для данного типа"
+                    />
+                    <IconButton
+                      onClick={() => {
+                        const updatedSources = [...sources];
+                        delete updatedSources[index].fields[field];
+                        setSources(updatedSources);
+                      }}
+                      sx={{ ml: 1 }}
+                    >
+                      <ClearIcon />
+                    </IconButton>
+                  </Box>
+                ))}
+
+                {generalErrors.length > 0 && (
+                  <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                    Общие ошибки: {generalErrors.join('; ')}
+                  </Typography>
+                )}
+              </Box>
+            );
+          })}
+        </Box>
+      )}
+      <Button fullWidth variant="contained" onClick={addSource} sx={{ mt: 2, width: '100%' }}>
+        Добавить источник
+      </Button>
+      <Button fullWidth variant="outlined" onClick={handleSaveEditedFile} sx={{ mt: 2, width: '100%' }}>
+        Сохранить
+      </Button>
+    </Paper>
+  </Fade>
+</Modal>
         <Modal open={errorModalOpen} onClose={() => setErrorModalOpen(false)}>
     <Box sx={{
         position: 'absolute',
