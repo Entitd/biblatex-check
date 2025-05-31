@@ -1260,7 +1260,7 @@ const handleEditFile = async (file) => {
                       </TableCell>
                     </TableRow>
                   </TableHead>
-                  <TableBody>
+               <TableBody>
   {filteredFiles.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((file, index) => (
     <TableRow
       key={file.id}
@@ -1306,9 +1306,48 @@ const handleEditFile = async (file) => {
         </Box>
       </TableCell>
       <TableCell align="center">
-        <Typography variant="body2">
-          {file.course_compliance}
-        </Typography>
+        <Tooltip
+          title={
+            file.next_course_requirements ? (
+              file.next_course_requirements.message ? (
+                file.next_course_requirements.message
+              ) : (
+                <Box>
+                  <Typography variant="body2">
+                    Для достижения курса {file.next_course_requirements.next_course} необходимо:
+                  </Typography>
+                  <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                    {file.next_course_requirements.additional_total > 0 && (
+                      <li>Добавить {file.next_course_requirements.additional_total} записей</li>
+                    )}
+                    {file.next_course_requirements.additional_foreign > 0 && (
+                      <li>Добавить {file.next_course_requirements.additional_foreign} записей на иностранном языке</li>
+                    )}
+                    {file.next_course_requirements.additional_articles_after_2015 > 0 && (
+                      <li>Добавить {file.next_course_requirements.additional_articles_after_2015} статей после 2015 года</li>
+                    )}
+                    {file.next_course_requirements.additional_21st_century > 0 && (
+                      <li>Добавить {file.next_course_requirements.additional_21st_century} записей 21-го века</li>
+                    )}
+                    {file.next_course_requirements.additional_total === 0 &&
+                     file.next_course_requirements.additional_foreign === 0 &&
+                     file.next_course_requirements.additional_articles_after_2015 === 0 &&
+                     file.next_course_requirements.additional_21st_century === 0 && (
+                      <li>Все требования выполнены</li>
+                    )}
+                  </ul>
+                </Box>
+              )
+            ) : (
+              'Нет данных о следующем курсе'
+            )
+          }
+          arrow
+        >
+          <Typography variant="body2">
+            {file.course_compliance}
+          </Typography>
+        </Tooltip>
       </TableCell>
       <TableCell align="center">
         <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
@@ -1380,7 +1419,47 @@ const handleEditFile = async (file) => {
           </Button>
         </Box>
         <Typography variant="body2" sx={{ mt: 1 }}>
-          <Box component="span" sx={{ fontWeight: 500 }}>Соответствие:</Box> {file.course_compliance}
+          <Box component="span" sx={{ fontWeight: 500 }}>Соответствие:</Box>{' '}
+          <Tooltip
+            title={
+              file.next_course_requirements ? (
+                file.next_course_requirements.message ? (
+                  file.next_course_requirements.message
+                ) : (
+                  <Box>
+                    <Typography variant="body2">
+                      Для достижения курса {file.next_course_requirements.next_course} необходимо:
+                    </Typography>
+                    <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                      {file.next_course_requirements.additional_total > 0 && (
+                        <li>Добавить {file.next_course_requirements.additional_total} записей</li>
+                      )}
+                      {file.next_course_requirements.additional_foreign > 0 && (
+                        <li>Добавить {file.next_course_requirements.additional_foreign} записей на иностранном языке</li>
+                      )}
+                      {file.next_course_requirements.additional_articles_after_2015 > 0 && (
+                        <li>Добавить {file.next_course_requirements.additional_articles_after_2015} статей после 2015 года</li>
+                      )}
+                      {file.next_course_requirements.additional_21st_century > 0 && (
+                        <li>Добавить {file.next_course_requirements.additional_21st_century} записей 21-го века</li>
+                      )}
+                      {file.next_course_requirements.additional_total === 0 &&
+                       file.next_course_requirements.additional_foreign === 0 &&
+                       file.next_course_requirements.additional_articles_after_2015 === 0 &&
+                       file.next_course_requirements.additional_21st_century === 0 && (
+                        <li>Все требования выполнены</li>
+                      )}
+                    </ul>
+                  </Box>
+                )
+              ) : (
+                'Нет данных о следующем курсе'
+              )
+            }
+            arrow
+          >
+            <span>{file.course_compliance}</span>
+          </Tooltip>
         </Typography>
       </Box>
       <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
