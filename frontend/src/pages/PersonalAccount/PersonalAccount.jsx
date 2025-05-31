@@ -517,117 +517,119 @@ const PersonalAccount = () => {
     setHasSource(true);
   };
 
-  const handleEditFile = async (file) => {
-    try {
-      const endpoint = isGuest
-        ? `/api/guest/get-bib-content?file_id=${file.id}&sessionId=${sessionId}`
-        : `/api/get-bib-content?file_id=${file.id}`;
-      const response = await (isGuest ? guestAxios : authAxios).get(endpoint);
-      const content = response.data.content;
-      const { sources: parsedSources, sourceLines } = parseBibFile(content);
-  
-      let errorLines = {};
-      if (file.errors) {
-        console.log("File errors (raw):", file.errors);
-  
-        let errorMessages = [];
-        if (Array.isArray(file.errors)) {
-          errorMessages = file.errors.map(msg => msg.trim()).filter(msg => msg);
-        } else if (typeof file.errors === 'string') {
-          errorMessages = file.errors.split('\n').map(msg => msg.trim()).filter(msg => msg);
-        } else {
-          console.warn("Unexpected file.errors format:", file.errors);
-        }
-  
-        errorMessages.forEach((error, idx) => {
-          console.log(`Parsing error ${idx}:`, error);
-  
-          // Извлечение поля из ошибки
-          let field = null;
-          // Проверяем, содержит ли ошибка слово 'author' (в любом регистре)
-          if (error.toLowerCase().includes("'author'")) {
-            field = "author";
-          } else {
-            const fieldMatch = error.match(/поле '([^']+)'/i);
-            if (fieldMatch) {
-              field = fieldMatch[1].toLowerCase();
-            }
-          }
-  
-          const idMatch = error.match(/записи '([^']+)'/i);
-          const lineMatch = error.match(/\(строка (\d+)\)/i);
-          const recordId = idMatch ? idMatch[1] : null;
-          const lineNumber = lineMatch ? parseInt(lineMatch[1], 10) - 1 : null;
-  
-          if (!field) {
-            console.warn(`No field found in error: ${error}`);
-            if (!errorLines["general"]) errorLines["general"] = [];
-            errorLines["general"].push(error.trim());
-            return;
-          }
-  
-          let sourceIndex = -1;
-          if (lineNumber !== null && sourceLines && sourceLines.length > 0) {
-            sourceIndex = sourceLines.findIndex((startLine, idx) => {
-              const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
-              return lineNumber >= startLine && lineNumber < nextStartLine;
-            });
-          }
-          if (sourceIndex === -1 && recordId) {
-            sourceIndex = parsedSources.findIndex(source => source.id === recordId);
-          }
-          if (sourceIndex === -1 && parsedSources.length > 0) {
-            sourceIndex = 0; // Fallback
-          }
-  
-          if (sourceIndex !== -1 && sourceIndex < parsedSources.length) {
-            if (!errorLines[sourceIndex]) errorLines[sourceIndex] = {};
-            errorLines[sourceIndex][field] = error.trim();
-          } else {
-            if (!errorLines["general"]) errorLines["general"] = [];
-            errorLines["general"].push(error.trim());
-          }
-        });
-      }
-  
-      const sourcesWithRequiredFields = parsedSources.map((source, index) => {
-        const requiredFields = getRequiredFieldsForType(source.type || 'misc', source.fields.title || '');
-        const fieldsWithRequired = { ...source.fields };
-  
-        requiredFields.forEach(field => {
-          if (!fieldsWithRequired[field]) {
-            fieldsWithRequired[field] = '';
-          }
-        });
-  
-        return {
-          ...source,
-          fields: fieldsWithRequired,
-          errors: errorLines[index] || {}
-        };
-      });
-  
-      console.log("Sources with errors:", sourcesWithRequiredFields);
-      console.log("Error lines:", errorLines);
-  
-      setSources(sourcesWithRequiredFields);
-      setCurrentSourceIndex(0);
-      setCurrentFields(getFieldsForType(sourcesWithRequiredFields[0]?.type || '', sourcesWithRequiredFields[0]?.fields.title || ''));
-      setEditContent(content);
-      setEditFileId(file.id);
-      setEditedLines(errorLines);
-      setEditModalOpen(true);
-      setHasSource(true);
-    } catch (error) {
-      if (error.response?.status === 401 && !isGuest) {
-        await refreshToken();
-        handleEditFile(file);
+const handleEditFile = async (file) => {
+  try {
+    const endpoint = isGuest
+      ? `/api/guest/get-bib-content?file_id=${file.id}&sessionId=${sessionId}`
+      : `/api/get-bib-content?file_id=${file.id}`;
+    const response = await (isGuest ? guestAxios : authAxios).get(endpoint);
+    const content = response.data.content;
+    const { sources: parsedSources, sourceLines } = parseBibFile(content);
+
+    let errorLines = {};
+    if (file.errors) {
+      console.log("File errors (raw):", file.errors);
+
+      let errorMessages = [];
+      if (Array.isArray(file.errors)) {
+        errorMessages = file.errors.map(msg => msg.trim()).filter(msg => msg);
+      } else if (typeof file.errors === 'string') {
+        errorMessages = file.errors.split('\n').map(msg => msg.trim()).filter(msg => msg);
       } else {
-        console.error("Error fetching file content:", error.response?.data || error.message);
-        setError("Не удалось загрузить содержимое файла: " + (error.response?.data?.detail || error.message));
+        console.warn("Unexpected file.errors format:", file.errors);
       }
+
+      errorMessages.forEach((error, idx) => {
+        console.log(`Parsing error ${idx}:`, error);
+
+        // Извлечение поля из ошибки
+        let field = null;
+        // Проверяем, содержит ли ошибка 'author' или 'автора'
+        if (error.toLowerCase().includes("'author'") || error.toLowerCase().includes("автора")) {
+          field = "author";
+        } else {
+          const fieldMatch = error.match(/поле '([^']+)'/i);
+          if (fieldMatch) {
+            field = fieldMatch[1].toLowerCase();
+          }
+        }
+
+        const idMatch = error.match(/записи '([^']+)'/i);
+        const lineMatch = error.match(/\(строка (\d+)\)/i);
+        const recordId = idMatch ? idMatch[1] : null;
+        const lineNumber = lineMatch ? parseInt(lineMatch[1], 10) - 1 : null;
+
+        if (!field) {
+          console.warn(`No field found in error: ${error}`);
+          if (!errorLines["general"]) errorLines["general"] = [];
+          errorLines["general"].push(error.trim());
+          return;
+        }
+
+        let sourceIndex = -1;
+        if (lineNumber !== null && sourceLines && sourceLines.length > 0) {
+          sourceIndex = sourceLines.findIndex((startLine, idx) => {
+            const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
+            return lineNumber >= startLine && lineNumber < nextStartLine;
+          });
+        }
+        if (sourceIndex === -1 && recordId) {
+          sourceIndex = parsedSources.findIndex(source => source.id === recordId);
+        }
+        if (sourceIndex === -1 && parsedSources.length > 0) {
+          sourceIndex = 0; // Fallback
+        }
+
+        if (sourceIndex !== -1 && sourceIndex < parsedSources.length) {
+          if (!errorLines[sourceIndex]) errorLines[sourceIndex] = {};
+          errorLines[sourceIndex][field] = error.trim();
+        } else {
+          if (!errorLines["general"]) errorLines["general"] = [];
+          errorLines["general"].push(error.trim());
+        }
+      });
     }
-  };
+
+    const sourcesWithRequiredFields = parsedSources.map((source, index) => {
+      const requiredFields = getRequiredFieldsForType(source.type || 'misc', source.fields.title || '');
+      const fieldsWithRequired = { ...source.fields };
+
+      requiredFields.forEach(field => {
+        if (!fieldsWithRequired[field]) {
+          fieldsWithRequired[field] = '';
+        }
+      });
+
+      return {
+        ...source,
+        fields: fieldsWithRequired,
+        errors: errorLines[index] || {}
+      };
+    });
+
+    console.log("Sources with errors:", sourcesWithRequiredFields);
+    console.log("Error lines:", errorLines);
+
+    setSources(sourcesWithRequiredFields);
+    setCurrentSourceIndex(0);
+    setCurrentFields(getFieldsForType(sourcesWithRequiredFields[0]?.type || '', sourcesWithRequiredFields[0]?.fields.title || ''));
+    setEditContent(content);
+    setEditFileId(file.id);
+    setEditedLines(errorLines);
+    setEditModalOpen(true);
+    setHasSource(true);
+  } catch (error) {
+    if (error.response?.status === 401 && !isGuest) {
+      await refreshToken();
+      handleEditFile(file);
+    } else {
+      console.error("Error fetching file content:", error.response?.data || error.message);
+      setError("Не удалось загрузить содержимое файла: " + (error.response?.data?.detail || error.message));
+    }
+  }
+};
+
+
 
   const revalidateFile = async (fileId) => {
     try {
