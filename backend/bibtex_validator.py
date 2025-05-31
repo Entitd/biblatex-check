@@ -254,7 +254,55 @@ def validate_bibtex_file(file_contents: str):
     course_compliance = get_course(total_count, foreign_language_count, articles_after_2015_count, literature_21_century_count)
     logger.info(f"Course compliance: {course_compliance}")
 
+    # Calculate requirements for the next course level
+    next_course_requirements = {}
+    # course_levels = [
+    #     (2, 16, 4, 3, 10),    # Требования для 2-го курса
+    #     (3, 21, 5, 5, 15),   # Требования для 3-го курса
+    #     (4, 26, 6, 7, 21),   # Требования для 4-го курса
+    #     (5, 31, 7, 7, 21),   # Требования для 5-го курса
+    #     (6, 36, 8, 8, 21),   # Требования для 6-го курса
+    # ]
+
+
+    course_levels = [
+        (2, 144, 44, 34, 140),    # Требования для 2-го курса
+        (3, 2441, 54, 54, 154),   # Требования для 3-го курса
+        (4, 2644, 64, 74, 214),   # Требования для 4-го курса
+        (5, 3144, 74, 74, 214),   # Требования для 5-го курса
+        (6, 3644, 448, 84, 241),   # Требования для 6-го курса
+    ]
+
+    current_course = int(course_compliance)
+    next_course = 6 if current_course == 6 else 2 if current_course == 0 else current_course + 1
+
+    # Находим требования для следующего курса
+    for level, total_req, foreign_req, after_2015_req, century_21_req in course_levels:
+        if level == next_course:
+            next_course_requirements = {
+                "next_course": str(level),
+                "additional_total": max(0, total_req - total_count),
+                "additional_foreign": max(0, foreign_req - foreign_language_count),
+                "additional_articles_after_2015": max(0, after_2015_req - articles_after_2015_count),
+                "additional_21st_century": max(0, century_21_req - literature_21_century_count)
+            }
+            break
+
+    # Если текущий курс 6, возвращаем сообщение о максимальном уровне
+    if current_course == 6:
+        next_course_requirements = {
+            "next_course": "6",
+            "additional_total": 0,
+            "additional_foreign": 0,
+            "additional_articles_after_2015": 0,
+            "additional_21st_century": 0,
+            "message": "Вы достигли максимального уровня соответствия (курс 6)"
+        }
+
+    logger.info(f"Next course requirements: {next_course_requirements}")
+
     return {
         "errors": errors,
-        "course_compliance": course_compliance
+        "course_compliance": course_compliance,
+        "next_course_requirements": next_course_requirements
     }

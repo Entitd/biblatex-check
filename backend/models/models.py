@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 from sqlalchemy import MetaData
@@ -23,6 +23,7 @@ class Examination(Base):
     loading_at = Column(DateTime, default=datetime.utcnow)
     number_of_errors = Column(Integer)
     course_compliance = Column(Integer)
+    next_course_requirements = Column(JSON, nullable=True)
     download_link_source = Column(String)
     download_link_edited = Column(String)
     errors = Column(String)

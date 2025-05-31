@@ -3,3 +3,4 @@ nginx.conf
 frontend/nginx.conf
 frontend/DockerFile
 backend/DockerFile
+backend/uploads
