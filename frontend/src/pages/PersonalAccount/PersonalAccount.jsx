@@ -317,32 +317,29 @@ const PersonalAccount = () => {
     return { sources, sourceLines };
 };
 
-  const handleTypeChange = (index, type, isEditing = false) => {
-    const updatedSources = [...sources];
-    const currentFields = updatedSources[index].fields;
+const handleTypeChange = (index, type, isEditing = false) => {
+  const updatedSources = [...sources];
+  const currentFields = updatedSources[index].fields;
+  const title = currentFields.title || '';
 
-    updatedSources[index].type = type;
+  // Get standard and required fields for the new type
+  const standardFields = getFieldsForType(type, title);
+  const requiredFields = getRequiredFieldsForType(type, title);
+  const validFields = [...new Set([...standardFields, ...requiredFields])]; // Combine and deduplicate
 
-    if (isEditing) {
-      const standardFields = getFieldsForType(type, currentFields.title || '');
-      updatedSources[index].fields = {
-        ...currentFields,
-        ...standardFields.reduce((acc, field) => {
-          acc[field] = currentFields[field] || '';
-          return acc;
-        }, {}),
-      };
-    } else {
-      const standardFields = getFieldsForType(type, currentFields.title || '');
-      updatedSources[index].fields = standardFields.reduce((acc, field) => {
-        acc[field] = currentFields[field] || '';
-        return acc;
-      }, {});
-    }
+  // Create new fields object, keeping only valid fields from currentFields
+  const newFields = {};
+  validFields.forEach(field => {
+    newFields[field] = currentFields[field] || ''; // Preserve existing values or set empty string
+  });
 
-    setSources(updatedSources);
-    setCurrentFields(getFieldsForType(type, currentFields.title || ''));
-  };
+  // Update the source
+  updatedSources[index].type = type;
+  updatedSources[index].fields = newFields;
+
+  setSources(updatedSources);
+  setCurrentFields(standardFields);
+};
 
   const currentYear = new Date().getFullYear();
 
