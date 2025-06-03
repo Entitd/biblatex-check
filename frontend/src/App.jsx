@@ -7,7 +7,6 @@ import RegistrationPage from './pages/RegistrationPage/RegistrationPage';
 import PersonalAccount from './pages/PersonalAccount/PersonalAccount';
 import { ThemeProvider } from './components/ThemeToggleButton/ThemeContext';
 import './style.css';
-
 function App() {
   return (
     <Router>
@@ -15,7 +14,7 @@ function App() {
         <UserProvider>
           <Routes>
             <Route path='/' element={<PersonalAccount />} />
-            <Route path='/main' element={<MainPage />} />
+            {/* <Route path='/main' element={<MainPage />} /> */}
             <Route path='/personalaccount' element={<PersonalAccount />} />
             <Route path="/guest" element={<PersonalAccount />} />
             <Route path='/login' element={<LoginPage />} />
