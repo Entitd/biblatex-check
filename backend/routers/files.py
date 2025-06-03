@@ -416,61 +416,80 @@ async def get_guest_files(sessionId: str, db: Session = Depends(get_db)):
 
 @router.post("/api/guest/upload-bib")
 async def upload_guest_bib(file: UploadFile = File(...), sessionId: str = Form(...), db: Session = Depends(get_db)):
-    exam = db.query(Examination).filter(Examination.session_id == sessionId).first()
-    if exam:
-        last_active = exam.last_active
-        if isinstance(last_active, str):
-            try:
-                last_active = datetime.strptime(last_active, "%Y-%m-%d %H:%M:%S.%f")
-            except ValueError:
-                last_active = datetime.strptime(last_active, "%Y-%m-%d %H:%M:%S")
-            logger.warning(f"last_active was a string for session {sessionId}, converted to datetime: {last_active}")
-        if (datetime.utcnow() - last_active) > timedelta(minutes=5):
-            db.query(Examination).filter(Examination.session_id == sessionId).update(
-                {Examination.last_active: datetime.utcnow()}
-            )
-            db.commit()
+    try:
+        # Проверка наличия session_id
+        if not sessionId:
+            raise HTTPException(status_code=400, detail="sessionId обязателен")
 
-    source_folder = Path('Uploads/source')
-    source_folder.mkdir(exist_ok=True)
-    unique_name = f"{uuid.uuid4().hex}_{file.filename}"
-    source_file_path = source_folder / unique_name
+        # Обновление времени активности
+        exam = db.query(Examination).filter(Examination.session_id == sessionId).first()
+        if exam:
+            last_active = exam.last_active
+            if isinstance(last_active, str):
+                try:
+                    last_active = datetime.strptime(last_active, "%Y-%m-%d %H:%M:%S.%f")
+                except ValueError:
+                    last_active = datetime.strptime(last_active, "%Y-%m-%d %H:%M:%S")
+            if (datetime.utcnow() - last_active) > timedelta(minutes=5):
+                db.query(Examination).filter(Examination.session_id == sessionId).update(
+                    {Examination.last_active: datetime.utcnow()}
+                )
+                db.commit()
 
-    content = await file.read()
-    file_contents = content.decode('utf-8')
-    with open(source_file_path, 'wb') as f:
-        f.write(content)
+        # Создание директории
+        source_folder = Path('Uploads/source')
+        source_folder.mkdir(parents=True, exist_ok=True)
 
-    validation_result = validate_bibtex_file(file_contents)
-    errors = validation_result["errors"]
-    course_compliance = validation_result["course_compliance"]
-    next_course_requirements = validation_result["next_course_requirements"]
+        # Сохранение файла
+        unique_name = f"{uuid.uuid4().hex}_{file.filename}"
+        source_file_path = source_folder / unique_name
 
-    new_exam = Examination(
-        id_user=None,
-        session_id=sessionId,
-        name_file=file.filename,
-        loading_at=datetime.utcnow(),
-        number_of_errors=len(errors),
-        course_compliance=course_compliance,
-        download_link_source=str(source_file_path),
-        download_link_edited=None,
-        errors="\n".join(errors) if errors else "Нет ошибок",
-        last_active=datetime.utcnow()
-    )
-    db.add(new_exam)
-    db.commit()
-    db.refresh(new_exam)
+        content = await file.read()
+        with open(source_file_path, 'wb') as f:
+            f.write(content)
 
-    return {
-        "msg": "Файл успешно загружен и проверен",
-        "filename": file.filename,
-        "file_id": new_exam.id_examination,
-        "errors": errors,
-        "course_compliance": str(course_compliance),
-        "next_course_requirements": next_course_requirements
-    }
+        # Декодирование и валидация
+        try:
+            file_contents = content.decode('utf-8')
+        except UnicodeDecodeError:
+            raise HTTPException(status_code=400, detail="Файл должен быть в формате UTF-8")
 
+        validation_result = validate_bibtex_file(file_contents)
+        errors = validation_result["errors"]
+        course_compliance = validation_result["course_compliance"]
+
+        # Сохранение в БД
+        new_exam = Examination(
+            id_user=None,
+            session_id=sessionId,
+            name_file=file.filename,
+            loading_at=datetime.utcnow(),
+            number_of_errors=len(errors),
+            course_compliance=course_compliance,
+            download_link_source=str(source_file_path),
+            download_link_edited=None,
+            errors="\n".join(errors) if errors else "Нет ошибок",
+            last_active=datetime.utcnow()
+        )
+        db.add(new_exam)
+        db.commit()
+        db.refresh(new_exam)
+
+        return {
+            "msg": "Файл успешно загружен и проверен",
+            "filename": file.filename,
+            "file_id": new_exam.id_examination,
+            "errors": errors,
+            "course_compliance": str(course_compliance),
+        }
+
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке файла: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+        
 
 @router.get("/download/{file_path:path}", name="download_guest_file")
 async def download_guest_file(file_path: str, sessionId: str = Query(...), db: Session = Depends(get_db)):

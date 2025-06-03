@@ -892,30 +892,53 @@ const handleEditFile = async (file) => {
     setCurrentFields(getFieldsForType(parsedSources[0]?.type || '', parsedSources[0]?.fields.title || ''));
   };
 
-  const uploadBibFiles = (event) => {
-    const uploadedFiles = event.target.files || event.dataTransfer.files;
-    Array.from(uploadedFiles).forEach(async (file) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      if (isGuest) formData.append('sessionId', sessionId);
-      try {
-        if (isGuest) {
-          await guestAxios.post('/api/guest/upload-bib', formData);
-        } else {
-          await authAxios.post('/api/upload-bib', formData);
-        }
-        fetchFiles();
-      } catch (error) {
-        if (error.response?.status === 401 && !isGuest) {
-          await refreshToken();
-          uploadBibFiles(event);
-        } else {
-          console.error('Error uploading file:', error.response?.data || error.message);
-          setError("Не удалось загрузить файл: " + (error.response?.data?.detail || error.message));
-        }
+  const uploadBibFiles = async (event) => {
+  const uploadedFiles = event.target.files || event.dataTransfer.files;
+  if (!uploadedFiles || uploadedFiles.length === 0) {
+    console.error('No files selected for upload');
+    setError('Не выбран файл для загрузки');
+    return;
+  }
+
+  Array.from(uploadedFiles).forEach(async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (isGuest) {
+      if (!sessionId) {
+        console.error('Session ID is missing');
+        setError('Отсутствует идентификатор сессии');
+        return;
       }
-    });
-  };
+      formData.append('sessionId', sessionId);
+    }
+    console.log('FormData entries:', [...formData.entries()]); // Логирование содержимого FormData
+    try {
+      if (isGuest) {
+        const response = await guestAxios.post('/api/guest/upload-bib', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data', // Явно указываем для ясности
+          },
+        });
+        console.log('Upload response:', response.data);
+      } else {
+        await authAxios.post('/api/upload-bib', formData);
+      }
+      fetchFiles();
+    } catch (error) {
+      console.error('Ошибка загрузки файла:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        headers: error.response?.headers,
+      });
+      setError(
+        `Не удалось загрузить файл: ${
+          error.response?.data?.detail || error.message || 'Неизвестная ошибка'
+        }`
+      );
+    }
+  });
+};
 
   const handleChangePage = (event, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = (event) => {
