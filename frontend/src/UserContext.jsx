@@ -1,6 +1,7 @@
 // UserContext.jsx
 import { createContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import CookieBanner from "./components/CookieBanner/CookieBanner";
 
 export const UserContext = createContext();
 
@@ -65,6 +66,7 @@ export const UserProvider = ({ children }) => {
   return (
     <UserContext.Provider value={{ user, login, refreshToken, logout }}>
       {children}
+      <CookieBanner />
     </UserContext.Provider>
   );
 };

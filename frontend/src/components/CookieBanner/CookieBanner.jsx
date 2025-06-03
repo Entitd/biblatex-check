@@ -1,9 +1,10 @@
 import React, { useContext, useState, useEffect } from "react";
-import { Box, Typography, Button } from "@mui/material";
+import { Box, Typography, Button, useTheme } from "@mui/material";
 import { ThemeContext } from "../ThemeToggleButton/ThemeContext";
 
 const CookieBanner = () => {
   const { isDarkMode } = useContext(ThemeContext);
+  const theme = useTheme();
   const [isVisible, setIsVisible] = useState(false);
 
   // Проверяем, было ли согласие уже дано (хранится в localStorage)
@@ -26,34 +27,45 @@ const CookieBanner = () => {
     <Box
       sx={{
         position: "fixed",
-        bottom: 16,
-        left: { xs: 8, sm: 16 },
-        right: { xs: 8, sm: 16 },
+        bottom: theme.spacing(2),
+        left: { xs: theme.spacing(1), sm: theme.spacing(2) },
+        right: { xs: theme.spacing(1), sm: theme.spacing(2) },
         maxWidth: { xs: "90%", sm: 400 },
-        bgcolor: isDarkMode ? "rgba(0, 0, 0, 0.9)" : "rgba(255, 255, 255, 0.9)",
-        color: isDarkMode ? "#ffffff" : "#000000",
-        p: 2,
-        borderRadius: 2,
-        boxShadow: 3,
+        bgcolor: isDarkMode
+          ? theme.palette.background.paper
+          : theme.palette.background.paper,
+        color: theme.palette.text.primary,
+        p: theme.spacing(2),
+        borderRadius: theme.shape.borderRadius,
+        border: `1px solid ${theme.palette.divider}`,
+        boxShadow: theme.shadows[3],
         zIndex: 1000,
         display: "flex",
         flexDirection: "column",
-        gap: 2,
+        gap: theme.spacing(2),
       }}
     >
-      <Typography variant="body2">
-        Мы используем cookies только для авторизации, чтобы обеспечить удобство работы с сайтом.
+      <Typography
+        variant="body2"
+        sx={{
+          fontSize: "0.875rem",
+          color: theme.palette.text.secondary,
+        }}
+      >
+        Мы используем cookies для обеспечения удобства работы с сайтом.
       </Typography>
       <Box display="flex" justifyContent="flex-end">
         <Button
           variant="contained"
+          color="primary"
           onClick={handleAccept}
           sx={{
             minWidth: "100px",
-            bgcolor: isDarkMode ? "#1976d2" : "#1976d2",
-            color: "#ffffff",
+            py: 1,
+            fontSize: "0.875rem",
+            fontWeight: 500,
             "&:hover": {
-              bgcolor: isDarkMode ? "#1565c0" : "#1565c0",
+              bgcolor: theme.palette.primary.dark,
             },
           }}
         >
