@@ -8,13 +8,12 @@ import re
 from pathlib import Path
 
 logging.basicConfig(level=logging.DEBUG)  # Устанавливаем DEBUG для диагностики
-
 logger = logging.getLogger(__name__)
 
-# Словарь полей записи
+# Словарь обязательных полей для каждого типа записи
 requiredEntryFields = {
-    "article": ["author", "title", "journal", "year", "volume", "number", "pages"],
-    "book": ["author", "title", "year", "address", "publisher", "pages"],
+    "article": ["author", "title", "journal", "year", "pages"],
+    "book": ["author", "title", "year", "address", "publisher", "pagetotal"],
     "manual": ["organization", "title", "year"],
     "misc": ["author", "title", "urldate", "url"],
     "online": ["author", "title", "urldate", "url"],
@@ -57,26 +56,9 @@ def get_required_fields(entry_type):
         return fields
     return []
 
-# Проверка англоязычная литература или русскоязычная
-def detect_language(text):
-    for char in text:
-        if 'а' <= char <= 'я' or 'А' <= char <= 'Я':
-            return 'russian'
-    return 'english'
-
-# Выдает соответствие курсу
-def get_course(total_count, foreign_language_count, articles_after_2015_count, literature_21_century_count):
-    if total_count > 35 and foreign_language_count > 7 and articles_after_2015_count > 7 and literature_21_century_count > 20:
-        return '6'
-    if total_count > 30 and foreign_language_count > 6 and articles_after_2015_count > 6 and literature_21_century_count > 20:
-        return '5'
-    if total_count > 25 and foreign_language_count > 5 and articles_after_2015_count > 6 and literature_21_century_count > 20:
-        return '4'
-    if total_count > 20 and foreign_language_count > 4 and articles_after_2015_count > 4 and literature_21_century_count > 14:
-        return '3'
-    if total_count > 15 and foreign_language_count > 3 and articles_after_2015_count > 2 and literature_21_century_count > 9:
-        return '2'
-    return '0'
+# Проверяет, есть ли в тексте кириллические символы
+def has_cyrillic(text):
+    return any('\u0400' <= char <= '\u04FF' for char in text)
 
 # Проверка формата поля author
 def validate_author_format(author, entry_id, line_number):
@@ -84,16 +66,13 @@ def validate_author_format(author, entry_id, line_number):
     if not author or author.strip() == "":
         logger.warning(f"Empty author field in entry '{entry_id}' (line {line_number})")
         return f"Поле 'author' пустое в записи '{entry_id}' (строка {line_number})"
-    
     # Регулярное выражение для одного автора: surname, name [patronymic]
     single_author_pattern = r'^[^{}]+,\s*[^{}]+$'
     # Регулярное выражение для нескольких авторов: surname, name [patronymic] and surname, name [patronymic]
     multi_author_pattern = r'^[^{}]+,\s*[^{}]+(\s*and\s*[^{}]+,\s*[^{}]+)*$'
-
     if not (re.match(single_author_pattern, author) or re.match(multi_author_pattern, author)):
         logger.warning(f"Invalid author format: '{author}' in entry '{entry_id}' (line {line_number})")
         return f"Неверный формат поля 'author' в записи '{entry_id}' (строка {line_number}): ожидается 'surname, name [patronymic]' или 'surname, name [patronymic] and surname, name [patronymic]'"
-
     # Проверяем каждого автора отдельно
     authors = [a.strip() for a in author.split(" and ")]
     for a in authors:
@@ -101,7 +80,6 @@ def validate_author_format(author, entry_id, line_number):
         if len(parts) != 2 or not parts[0] or not parts[1]:
             logger.warning(f"Invalid author component: '{a}' in entry '{entry_id}' (line {line_number})")
             return f"Неверный формат автора '{a}' в записи '{entry_id}' (строка {line_number}): ожидается 'surname, name [patronymic]'"
-    
     logger.debug(f"Author field '{author}' is valid")
     return None
 
@@ -113,13 +91,11 @@ def parse_bibtex(file_contents: str):
     file_lines = file_contents.splitlines()
     inside_entry = False  # Флаг для отслеживания, находимся ли внутри записи
     errors = []  # Список синтаксических ошибок
-
     for i, line in enumerate(file_lines):
         line = line.strip()
         logger.debug(f"Processing line {i+1}: '{line}'")
         if not line or line.startswith("%"):
             continue
-
         if line.startswith("@"):
             if current_entry is not None:
                 # Добавляем предыдущую запись
@@ -135,7 +111,7 @@ def parse_bibtex(file_contents: str):
                     errors.append(f"Неверный формат записи в строке {i+1}: ожидается '@type{{id,'")
                     continue
                 entry_type = parts[0].strip("@").lower()
-                entry_id = parts[1].rstrip(",\n").strip()
+                entry_id = parts[1].rstrip(",").strip()
                 if not entry_id:
                     logger.error(f"Empty entry ID at line {i+1}: '{line}'")
                     errors.append(f"Пустой ID записи в строке {i+1}")
@@ -171,7 +147,6 @@ def parse_bibtex(file_contents: str):
                 logger.error(f"Invalid field format at line {i+1}: '{line}'")
                 errors.append(f"Неверный формат поля в строке {i+1}: '{line}'")
                 continue
-
     # Добавляем последнюю запись
     if current_entry is not None:
         current_entry["fields"] = current_fields
@@ -179,11 +154,26 @@ def parse_bibtex(file_contents: str):
         logger.debug(f"Appended final entry: ID={current_entry['ID']}, Type={current_entry['ENTRYTYPE']}")
         if inside_entry:
             errors.append(f"Запись '{current_entry['ID']}' не завершена закрывающей скобкой (строка {current_entry['line_number']})")
-
     logger.debug(f"Total entries parsed: {len(entries)}")
     if errors:
         logger.warning(f"Syntax errors found: {errors}")
     return entries, errors
+
+
+# Выдает соответствие курсу
+def get_course(total_count, foreign_language_count, articles_after_2015_count, literature_21_century_count):
+    if total_count > 35 and foreign_language_count > 7 and articles_after_2015_count > 7 and literature_21_century_count > 20:
+        return '6'
+    if total_count > 30 and foreign_language_count > 6 and articles_after_2015_count > 6 and literature_21_century_count > 20:
+        return '5'
+    if total_count > 25 and foreign_language_count > 5 and articles_after_2015_count > 6 and literature_21_century_count > 20:
+        return '4'
+    if total_count > 20 and foreign_language_count > 4 and articles_after_2015_count > 4 and literature_21_century_count > 14:
+        return '3'
+    if total_count > 15 and foreign_language_count > 3 and articles_after_2015_count > 2 and literature_21_century_count > 9:
+        return '2'
+    return '0'
+
 
 # Проверяет весь файл, на основе функций сверху
 def validate_bibtex_file(file_contents: str):
@@ -195,6 +185,7 @@ def validate_bibtex_file(file_contents: str):
 
     errors = syntax_errors.copy()  # Добавляем синтаксические ошибки
     seen_ids = set()  # Для проверки оригинальности ключей
+
     total_count = 0
     foreign_language_count = 0
     articles_after_2015_count = 0
@@ -208,9 +199,10 @@ def validate_bibtex_file(file_contents: str):
         seen_ids.add(entry_id)
 
         entry_type = entry["ENTRYTYPE"]
+        original_entry_type = entry_type  # сохраним оригинал
         if entry_type == "online":
             entry_type = "misc"
-            
+
         required_fields = get_required_fields(entry_type)
         entry_fields = [field.lower() for field in entry["fields"].keys()]
         line_number = entry["line_number"]
@@ -218,7 +210,13 @@ def validate_bibtex_file(file_contents: str):
         # Проверка обязательных полей
         for field in required_fields:
             if field not in entry_fields:
-                errors.append(f"Отсутствует обязательное поле '{field}' в записи '{entry['ID']}' типа '{entry_type}' (строка {line_number})")
+                errors.append(f"Отсутствует обязательное поле '{field}' в записи '{entry['ID']}' типа '{original_entry_type}' (строка {line_number})")
+
+        # Дополнительная проверка для article: должно быть хотя бы одно из volume, number, issue
+        if original_entry_type == "article":
+            journal_fields = ["volume", "number", "issue"]
+            if not any(field in entry_fields for field in journal_fields):
+                errors.append(f"Для статьи '{entry_id}' должно быть указано хотя бы одно из полей: volume, number или issue (строка {line_number})")
 
         # Проверка формата поля author, если оно есть и требуется
         if "author" in required_fields and "author" in entry["fields"]:
@@ -232,22 +230,30 @@ def validate_bibtex_file(file_contents: str):
             year = int(year_str)
             if year > current_year:
                 errors.append(f"Год публикации {year} в будущем для записи '{entry['ID']}' (строка {line_number})")
-        
-        total_count += 1
+
+        # Исключаем online/mis из подсчёта статистики
+        if original_entry_type not in ["online"]:
+            total_count += 1
+
         title = entry["fields"].get("title", "")
+
+        # Проверка наличия hyphenation для английских заголовков без кириллицы
+        if not has_cyrillic(title):
+            if "hyphenation" not in entry_fields:
+                errors.append(f"Для записи '{entry_id}' отсутствует поле 'hyphenation', хотя заголовок на английском языке (строка {line_number})")
+
         year = entry["fields"].get("year", "")
         hyphenation = entry["fields"].get("hyphenation", "").lower()
-
         language = 'english' if hyphenation == 'english' else 'russian'
 
         if year.isdigit():
             year = int(year)
-            if entry_type == "article" and year > 2015:
+            if original_entry_type == "article" and year > 2015:
                 articles_after_2015_count += 1
             if year >= 2000:
                 literature_21_century_count += 1
 
-        if language == 'english':
+        if language == 'english' and original_entry_type not in ["online", "misc"]:
             foreign_language_count += 1
 
     logger.info(f"Total: {total_count}, Foreign: {foreign_language_count}, After 2015: {articles_after_2015_count}, 21st: {literature_21_century_count}")
@@ -263,7 +269,6 @@ def validate_bibtex_file(file_contents: str):
         (5, 31, 7, 7, 21),   # Требования для 5-го курса
         (6, 36, 8, 8, 21),   # Требования для 6-го курса
     ]
-
     current_course = int(course_compliance)
     next_course = 6 if current_course == 6 else 2 if current_course == 0 else current_course + 1
 
@@ -291,7 +296,6 @@ def validate_bibtex_file(file_contents: str):
         }
 
     logger.info(f"Next course requirements: {next_course_requirements}")
-
     return {
         "errors": errors,
         "course_compliance": course_compliance,

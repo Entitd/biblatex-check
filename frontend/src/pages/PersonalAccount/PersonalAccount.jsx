@@ -119,7 +119,7 @@ const PersonalAccount = () => {
   const getBaseFieldsForType = (type) => {
     switch (type) {
       case "article": return ["author", "title", "journal", "year", "volume", "number", "issue", "pages"];
-      case "book": return ["author", "title", "year", "address", "publisher", "pages"];
+      case "book": return ["author", "title", "year", "address", "publisher", "pagetotal"];
       case "conference": return ["author", "title", "booktitle", "year", "pages", "organization"];
       case "techReport": return ["author", "title", "institution", "year"];
       case "inProceedings": return ["author", "title", "booktitle", "year", "pages", "publisher", "address"];
@@ -140,7 +140,7 @@ const PersonalAccount = () => {
     const baseRequiredFields = (() => {
       switch (type) {
         case "article": return ["author", "title", "journal", "year", "pages"];
-        case "book": return ["author", "title", "year", "address", "publisher", "pages"];
+        case "book": return ["author", "title", "year", "address", "publisher", "pagetotal"];
         case "conference": return ["author", "title", "booktitle", "year", "pages", "organization"];
         case "techReport": return ["author", "title", "institution", "year"];
         case "inProceedings": return ["author", "title", "booktitle", "year", "pages", "publisher", "address"];
@@ -1826,56 +1826,66 @@ const handleEditFile = async (file) => {
                     );
                   })}
 
-                {source.type === 'article' && (
-                  <Box sx={{ display: 'flex', gap: 2, mt: 1, flexWrap: 'wrap' }}>
-                    {['volume', 'number', 'issue'].map((field) => {
-                      const fieldValue = source.fields[field] || '';
-                      const isInvalidNumeric = fieldValue && !/^\d+$/.test(fieldValue);
-                      const hasPublicationFields = ['volume', 'number', 'issue'].some(f =>
-                        source.fields[f] && source.fields[f].trim() !== ''
-                      );
-                      const fieldError = sourceErrors[field];
+         {source.type === 'article' && (
+  <Box sx={{ display: 'flex', gap: 2, mt: 1, flexWrap: 'wrap' }}>
+    {['volume', 'number', 'issue'].map((field) => {
+      const fieldValue = source.fields[field] || '';
+      const isInvalidNumeric = fieldValue && !/^\d+$/.test(fieldValue);
+      const hasPublicationFields = ['volume', 'number', 'issue'].some(
+        (f) => source.fields[f] && source.fields[f].trim() !== ''
+      );
+      const fieldError = sourceErrors[field];
 
-                      return (
-                        <TextField
-                          key={field}
-                          margin="dense"
-                          label={field}
-                          value={fieldValue}
-                          onChange={(e) => handleSourceChange(index, field, e.target.value)}
-                          sx={{
-                            flex: '1 1 30%',
-                            minWidth: '100px',
-                            '& .MuiInputBase-input': {
-                              textDecoration: fieldError ? 'underline red wavy' : 'none',
-                              color: isInvalidNumeric || (!hasPublicationFields && !fieldValue) || fieldError
-                                ? 'error.main'
-                                : 'text.primary'
-                            },
-                          }}
-                          error={isInvalidNumeric || (!hasPublicationFields && !fieldValue) || !!fieldError}
-                          helperText={
-                            fieldError
-                              ? fieldError.replace(/^(Неверный формат поля '[^']+'|Отсутствует обязательное поле '[^']+').*?(?=:|$)(\:.*)?$/, (match, p1, p2) => p2 ? p2.substring(1).trim() : 'Ошибка в поле')
-                              : isInvalidNumeric
-                                ? 'Поле должно содержать только число'
-                                : (!hasPublicationFields && !fieldValue)
-                                  ? 'Заполните хотя бы одно из этих полей'
-                                  : ''
-                          }
-                          inputProps={{
-                            inputMode: 'numeric',
-                            pattern: '[0-9]*',
-                            type: 'text'
-                          }}
-                        />
-                      );
-                    })}
-                    <Typography variant="caption" sx={{ width: '100%', color: 'text.secondary', mt: -1 }}>
-                      Возможно, у вашего источника могут отсутствовать некоторые из этих полей.
-                    </Typography>
-                  </Box>
-                )}
+      // Извлекаем сообщение об ошибке без префикса
+      const extractErrorMessage = (error) => {
+        if (!error) return '';
+        const match = error.match(/^(Неверный формат поля '[^']+'|Отсутствует обязательное поле '[^']+').*?(?=:|$)(\:.*)?$/);
+        if (match && match[2]) return match[2].substring(1).trim();
+        return error;
+      };
+
+      const errorMessage = extractErrorMessage(fieldError);
+
+      // Определяем, есть ли реальная ошибка
+      const hasError = !!errorMessage || isInvalidNumeric || (!hasPublicationFields && !fieldValue);
+
+      return (
+        <TextField
+          key={field}
+          margin="dense"
+          label={field}
+          value={fieldValue}
+          onChange={(e) => handleSourceChange(index, field, e.target.value)}
+          sx={{
+            flex: '1 1 30%',
+            minWidth: '100px',
+            '& .MuiInputBase-input': {
+              textDecoration: hasError ? 'underline red wavy' : 'none',
+              color: hasError ? 'error.main' : 'text.primary'
+            },
+          }}
+          error={hasError}
+          helperText={
+            hasError
+              ? errorMessage ||
+                (isInvalidNumeric
+                  ? 'Поле должно содержать только число'
+                  : 'Заполните хотя бы одно из этих полей')
+              : ''
+          }
+          inputProps={{
+            inputMode: 'numeric',
+            pattern: '[0-9]*',
+            type: 'text'
+          }}
+        />
+      );
+    })}
+    <Typography variant="caption" sx={{ width: '100%', color: 'text.secondary', mt: -1 }}>
+      Возможно, у вашего источника могут отсутствовать некоторые из этих полей.
+    </Typography>
+  </Box>
+)}
 
                 {optional.map((field) => (
                   <Box key={field} display="flex" alignItems="center" sx={{ width: '100%' }}>
@@ -1906,11 +1916,11 @@ const handleEditFile = async (file) => {
                   </Box>
                 ))}
 
-                {generalErrors.length > 0 && (
+                {/* {generalErrors.length > 0 && (
                   <Typography variant="body2" color="error" sx={{ mt: 1 }}>
                     Общие ошибки: {generalErrors.join('; ')}
                   </Typography>
-                )}
+                )} */}
               </Box>
             );
           })}
