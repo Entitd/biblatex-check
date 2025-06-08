@@ -136,6 +136,20 @@ const PersonalAccount = () => {
     return hasCyrillic || !title ? baseFields : [...baseFields, "hyphenation"];
   };
 
+  const [createModalState, setCreateModalState] = useState(() => {
+  const initialType = 'article';
+  const initialFields = getBaseFieldsForType(initialType).reduce((acc, field) => {
+    acc[field] = '';
+    return acc;
+  }, {});
+  return {
+    sources: [{ type: initialType, fields: initialFields }],
+    currentSourceIndex: 0,
+    currentFields: getBaseFieldsForType(initialType),
+    hasSource: true,
+  };
+});
+
   const getRequiredFieldsForType = (type, title = '') => {
     const baseRequiredFields = (() => {
       switch (type) {
@@ -318,56 +332,50 @@ const PersonalAccount = () => {
 };
 
 const handleTypeChange = (index, type, isEditing = false) => {
-  const updatedSources = [...sources];
+  const updatedSources = [...createModalState.sources];
   const currentFields = updatedSources[index].fields;
   const title = currentFields.title || '';
 
-  // Get standard and required fields for the new type
   const standardFields = getFieldsForType(type, title);
   const requiredFields = getRequiredFieldsForType(type, title);
-  const validFields = [...new Set([...standardFields, ...requiredFields])]; // Combine and deduplicate
+  const validFields = [...new Set([...standardFields, ...requiredFields])];
 
-  // Create new fields object, keeping only valid fields from currentFields
   const newFields = {};
   validFields.forEach(field => {
-    newFields[field] = currentFields[field] || ''; // Preserve existing values or set empty string
+    newFields[field] = currentFields[field] || '';
   });
 
-  // Update the source
   updatedSources[index].type = type;
   updatedSources[index].fields = newFields;
 
-  setSources(updatedSources);
-  setCurrentFields(standardFields);
+  setCreateModalState({
+    ...createModalState,
+    sources: updatedSources,
+    currentFields: standardFields,
+  });
 };
 
   const currentYear = new Date().getFullYear();
 
-  const addSource = () => {
-    const newSource = { type: '', fields: {} };
-    setSources([...sources, newSource]);
-    setCurrentSourceIndex(sources.length);
-    setHasSource(true);
-  };
+const addSource = () => {
+  const newSource = { type: 'article', fields: getBaseFieldsForType('article').reduce((acc, field) => ({ ...acc, [field]: '' }), {}) };
+  setCreateModalState({
+    ...createModalState,
+    sources: [...createModalState.sources, newSource],
+    currentSourceIndex: createModalState.sources.length,
+    currentFields: getBaseFieldsForType('article'),
+    hasSource: true,
+  });
+};
 
-  const handleSourceChange = (index, field, value) => {
-    const singleNumericFields = ['year', 'volume', 'number', 'issue'];
-    const pageRangeField = ['page', 'pages'];
-    
-    const updatedSources = [...sources];
+const handleSourceChange = (index, field, value) => {
+  const singleNumericFields = ['year', 'volume', 'number', 'issue'];
+  const pageRangeField = ['page', 'pages'];
+  
+  const updatedSources = [...createModalState.sources];
 
-    if (singleNumericFields.includes(field)) {
-      // Allow only digits or empty string
-      if (value === '' || /^\d+$/.test(value)) {
-        updatedSources[index] = {
-          ...updatedSources[index],
-          fields: {
-            ...updatedSources[index].fields,
-            [field]: value,
-          },
-        };
-      }
-    } else if (pageRangeField.includes(field)) {
+  if (singleNumericFields.includes(field)) {
+    if (value === '' || /^\d+$/.test(value)) {
       updatedSources[index] = {
         ...updatedSources[index],
         fields: {
@@ -375,143 +383,174 @@ const handleTypeChange = (index, type, isEditing = false) => {
           [field]: value,
         },
       };
-    } else if (field === 'title') {
-      const hasCyrillic = /[\u0400-\u04FF]/.test(value);
-      updatedSources[index] = {
-        ...updatedSources[index],
-        fields: {
-          ...updatedSources[index].fields,
-          [field]: value,
-        },
-      };
-      if (hasCyrillic && updatedSources[index].fields.hyphenation) {
-        delete updatedSources[index].fields.hyphenation;
-      } else if (!hasCyrillic && value && !updatedSources[index].fields.hyphenation) {
-        updatedSources[index].fields.hyphenation = '';
-      }
-      setCurrentFields(getFieldsForType(updatedSources[index].type || 'misc', value));
+    }
+  } else if (pageRangeField.includes(field)) {
+    updatedSources[index] = {
+      ...updatedSources[index],
+      fields: {
+        ...updatedSources[index].fields,
+        [field]: value,
+      },
+    };
+  } else if (field === 'title') {
+    const hasCyrillic = /[\u0400-\u04FF]/.test(value);
+    updatedSources[index] = {
+      ...updatedSources[index],
+      fields: {
+        ...updatedSources[index].fields,
+        [field]: value,
+      },
+    };
+    if (hasCyrillic && updatedSources[index].fields.hyphenation) {
+      delete updatedSources[index].fields.hyphenation;
+    } else if (!hasCyrillic && value && !updatedSources[index].fields.hyphenation) {
+      updatedSources[index].fields.hyphenation = '';
+    }
+    setCreateModalState({
+      ...createModalState,
+      sources: updatedSources,
+      currentFields: getFieldsForType(updatedSources[index].type || 'misc', value),
+    });
+    return;
+  } else {
+    updatedSources[index] = {
+      ...updatedSources[index],
+      fields: {
+        ...updatedSources[index].fields,
+        [field]: value,
+      },
+    };
+  }
+
+  setCreateModalState({
+    ...createModalState,
+    sources: updatedSources,
+  });
+};
+
+const saveBibFiles = async () => {
+  const nonEmptySources = createModalState.sources.filter(source => 
+    Object.values(source.fields).some(value => value.trim() !== '')
+  );
+  
+  if (nonEmptySources.length === 0) {
+    setError("Создаваемый файл не может быть пустым");
+    return;
+  }
+  
+  const yearErrors = nonEmptySources.filter(source => 
+    source.fields.year && (isNaN(source.fields.year) || parseInt(source.fields.year) > currentYear)
+  );
+
+  const numericFieldErrors = nonEmptySources.map((source, idx) => {
+    const errors = [];
+    if (source.fields.volume && !/^\d+$/.test(source.fields.volume)) {
+      errors.push(`volume в источнике ${idx + 1} должно быть числом`);
+    }
+    if (source.fields.number && !/^\d+$/.test(source.fields.number)) {
+      errors.push(`number в источнике ${idx + 1} должно быть числом`);
+    }
+    if (source.fields.issue && !/^\d+$/.test(source.fields.issue)) {
+      errors.push(`issue в источнике ${idx + 1} должно быть числом`);
+    }
+    return errors.length > 0 ? errors.join(', ') : null;
+  }).filter(Boolean);
+
+  const missingFieldsWarnings = nonEmptySources.map((source, idx) => {
+    const requiredFields = getRequiredFieldsForType(source.type || 'misc', source.fields.title || '');
+    const missing = requiredFields.filter(field => !source.fields[field] || source.fields[field].trim() === '');
+    return missing.length > 0 
+      ? `Источник ${idx + 1}: отсутствуют обязательные поля (${missing.join(', ')})`
+      : null;
+  }).filter(Boolean);
+  
+  const allWarnings = [...numericFieldErrors, ...missingFieldsWarnings];
+  
+  try {
+    const formattedSources = nonEmptySources.map((source, index) => ({
+      ...source.fields,
+      ID: `source${index + 1}`,
+      type: source.type,
+    }));
+  
+    const response = await (isGuest ? guestAxios : authAxios).post(
+      isGuest ? '/api/guest/save-bib' : '/api/save-bib',
+      isGuest ? { sessionId, files: formattedSources } : { files: formattedSources }
+    );
+  
+    if (response.data?.errors || yearErrors.length > 0 || allWarnings.length > 0) {
+      const allMessages = [
+        ...(response.data?.errors || []),
+        ...yearErrors.map(() => `Проверьте год публикации (не может быть больше ${currentYear})`),
+        ...allWarnings
+      ];
+  
+      setSnackbar({
+        open: true,
+        message: "Файл сохранён, но содержит предупреждения",
+        severity: "warning"
+      });
+  
+      const errorLines = {};
+      (response.data?.errors || []).forEach(error => {
+        const match = error.match(/\(строка (\d+)\)$/);
+        if (match) errorLines[parseInt(match[1]) - 1] = error;
+      });
+  
+      setEditedLines(errorLines);
     } else {
-      updatedSources[index] = {
-        ...updatedSources[index],
-        fields: {
-          ...updatedSources[index].fields,
-          [field]: value,
-        },
-      };
-    }
-
-    setSources(updatedSources);
-  };
-
-  const saveBibFiles = async () => {
-    const nonEmptySources = sources.filter(source => 
-      Object.values(source.fields).some(value => value.trim() !== '')
-    );
-  
-    if (nonEmptySources.length === 0) {
-      setError("Создаваемый файл не может быть пустым");
-      return;
+      setSnackbar({
+        open: true,
+        message: "Файл успешно сохранён",
+        severity: "success"
+      });
     }
   
-    const yearErrors = nonEmptySources.filter(source => 
-      source.fields.year && (isNaN(source.fields.year) || parseInt(source.fields.year) > currentYear)
-    );
-
-    const numericFieldErrors = nonEmptySources.map((source, idx) => {
-      const errors = [];
-      if (source.fields.volume && !/^\d+$/.test(source.fields.volume)) {
-        errors.push(`volume в источнике ${idx + 1} должно быть числом`);
-      }
-      if (source.fields.number && !/^\d+$/.test(source.fields.number)) {
-        errors.push(`number в источнике ${idx + 1} должно быть числом`);
-      }
-      if (source.fields.issue && !/^\d+$/.test(source.fields.issue)) {
-        errors.push(`issue в источнике ${idx + 1} должно быть числом`);
-      }
-      return errors.length > 0 ? errors.join(', ') : null;
-    }).filter(Boolean);
-
-    const missingFieldsWarnings = nonEmptySources.map((source, idx) => {
-      const requiredFields = getRequiredFieldsForType(source.type || 'misc', source.fields.title || '');
-      const missing = requiredFields.filter(field => !source.fields[field] || source.fields[field].trim() === '');
-      return missing.length > 0 
-        ? `Источник ${idx + 1}: отсутствуют обязательные поля (${missing.join(', ')})`
-        : null;
-    }).filter(Boolean);
-  
-    const allWarnings = [...numericFieldErrors, ...missingFieldsWarnings];
-  
-    try {
-      const formattedSources = nonEmptySources.map((source, index) => ({
-        ...source.fields,
-        ID: `source${index + 1}`,
-        type: source.type,
-      }));
-  
-      const response = await (isGuest ? guestAxios : authAxios).post(
-        isGuest ? '/api/guest/save-bib' : '/api/save-bib',
-        isGuest ? { sessionId, files: formattedSources } : { files: formattedSources }
-      );
-  
-      if (response.data?.errors || yearErrors.length > 0 || allWarnings.length > 0) {
-        const allMessages = [
-          ...(response.data?.errors || []),
-          ...yearErrors.map(() => `Проверьте год публикации (не может быть больше ${currentYear})`),
-          ...allWarnings
-        ];
-  
-        setSnackbar({
-          open: true,
-          message: "Файл сохранён, но содержит предупреждения",
-          severity: "warning"
-        });
-  
-        const errorLines = {};
-        (response.data?.errors || []).forEach(error => {
-          const match = error.match(/\(строка (\d+)\)$/);
-          if (match) errorLines[parseInt(match[1]) - 1] = error;
-        });
-  
-        setEditedLines(errorLines);
-      } else {
-        setSnackbar({
-          open: true,
-          message: "Файл успешно сохранён",
-          severity: "success"
-        });
-      }
-  
-      setModalOpen(false);
-      setSources([]);
-      fetchFiles();
-  
-    } catch (error) {
-      console.error("Ошибка сохранения:", error);
-      setError(`Ошибка сохранения: ${error.response?.data?.detail || error.message}`);
-    }
-  };
-
-  const navigateSource = (direction) => {
-    if (direction === 'next' && currentSourceIndex < sources.length - 1) {
-      setCurrentSourceIndex(currentSourceIndex + 1);
-      setCurrentFields(getFieldsForType(sources[currentSourceIndex + 1].type, sources[currentSourceIndex + 1].fields.title || ''));
-    } else if (direction === 'prev' && currentSourceIndex > 0) {
-      setCurrentSourceIndex(currentSourceIndex - 1);
-      setCurrentFields(getFieldsForType(sources[currentSourceIndex - 1].type, sources[currentSourceIndex - 1].fields.title || ''));
-    }
-  };
-
-  const handleCreateBibFile = () => {
+    // Reset to default article fields
     const initialType = 'article';
     const initialFields = getBaseFieldsForType(initialType).reduce((acc, field) => {
       acc[field] = '';
       return acc;
     }, {});
+    setCreateModalState({
+      sources: [{ type: initialType, fields: initialFields }],
+      currentSourceIndex: 0,
+      currentFields: getBaseFieldsForType(initialType),
+      hasSource: true,
+    });
+    setModalOpen(false);
+    fetchFiles();
+  
+  } catch (error) {
+    console.error("Ошибка сохранения:", error);
+    setError(`Ошибка сохранения: ${error.response?.data?.detail || error.message}`);
+  }
+};
+
+const navigateSource = (direction) => {
+  if (direction === 'next' && createModalState.currentSourceIndex < createModalState.sources.length - 1) {
+    setCreateModalState({
+      ...createModalState,
+      currentSourceIndex: createModalState.currentSourceIndex + 1,
+      currentFields: getFieldsForType(
+        createModalState.sources[createModalState.currentSourceIndex + 1].type,
+        createModalState.sources[createModalState.currentSourceIndex + 1].fields.title || ''
+      ),
+    });
+  } else if (direction === 'prev' && createModalState.currentSourceIndex > 0) {
+    setCreateModalState({
+      ...createModalState,
+      currentSourceIndex: createModalState.currentSourceIndex - 1,
+      currentFields: getFieldsForType(
+        createModalState.sources[createModalState.currentSourceIndex - 1].type,
+        createModalState.sources[createModalState.currentSourceIndex - 1].fields.title || ''
+      ),
+    });
+  }
+};
+
+  const handleCreateBibFile = () => {
     setModalOpen(true);
-    setSources([{ type: initialType, fields: initialFields }]);
-    setCurrentSourceIndex(0);
-    setCurrentFields(getBaseFieldsForType(initialType));
-    setHasSource(true);
   };
 
 const handleEditFile = async (file) => {
@@ -1524,53 +1563,74 @@ const handleEditFile = async (file) => {
 </Paper>
 
         <Modal
-          open={modalOpen}
-          onClose={() => {
-            setModalOpen(false);
-            setError(null);
-          }}
-          closeAfterTransition
-          slots={{ backdrop: Backdrop }}
-          slotProps={{
-            backdrop: {
-              timeout: 500,
-              sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
-            },
-          }}
-        >
-          <Fade in={modalOpen}>
-            <Paper
-              sx={{
-                width: { xs: '90%', sm: '80%', md: '70%' },
-                p: 3,
-                position: 'fixed',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                borderRadius: '15px',
-                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-                background: 'background.paper',
-                height: '90vh',
-                maxHeight: 'none',
-                display: 'flex',
-                flexDirection: 'column',
-                zIndex: 1300,
-                overflowY: 'auto',
-              }}
+  open={modalOpen}
+  onClose={() => setModalOpen(false)}
+  closeAfterTransition
+  slots={{ backdrop: Backdrop }}
+  slotProps={{
+    backdrop: {
+      timeout: 500,
+      sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
+    },
+  }}
+>
+  <Fade in={modalOpen}>
+    <Paper
+      sx={{
+        width: { xs: '95%', sm: '85%', md: '75%' },
+        maxWidth: '800px',
+        p: { xs: 2, sm: 3 },
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        borderRadius: '16px',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
+        background: 'background.paper',
+        maxHeight: '85vh',
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 1300,
+      }}
+    >
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h5" sx={{ fontWeight: '600', color: 'text.primary' }}>
+          Создание BibTeX файла
+        </Typography>
+        <IconButton onClick={() => setModalOpen(false)} sx={{ color: 'text.secondary' }}>
+          <ClearIcon />
+        </IconButton>
+      </Box>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2, borderRadius: '8px' }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {createModalState.hasSource && (
+        <Box sx={{ mb: 3 }}>
+          <Accordion defaultExpanded sx={{ borderRadius: '8px', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              sx={{ bgcolor: isDarkMode ? 'grey.800' : 'grey.100', borderRadius: '8px 8px 0 0' }}
             >
-              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>Создать bib-файл</Typography>
-              {error && (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-                  {error}
-                </Alert>
-              )}
-              <FormControl fullWidth margin="normal" sx={{ width: '100%' }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: '500' }}>
+                Источник {createModalState.currentSourceIndex + 1} из {createModalState.sources.length}
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails sx={{ p: 2 }}>
+              <FormControl fullWidth sx={{ mb: 2 }}>
                 <InputLabel id="type-label">Тип записи</InputLabel>
                 <Select
                   labelId="type-label"
-                  value={sources[currentSourceIndex]?.type || ''}
-                  onChange={(e) => handleTypeChange(currentSourceIndex, e.target.value)}
-                  sx={{ width: '100%' }}
+                  value={createModalState.sources[createModalState.currentSourceIndex]?.type || ''}
+                  onChange={(e) => handleTypeChange(createModalState.currentSourceIndex, e.target.value)}
+                  sx={{
+                    borderRadius: '8px',
+                    '& .MuiSelect-select': { py: 1.5 },
+                  }}
                 >
                   <MenuItem value="article">Article</MenuItem>
                   <MenuItem value="book">Book</MenuItem>
@@ -1582,112 +1642,192 @@ const handleEditFile = async (file) => {
                   <MenuItem value="misc">Misc</MenuItem>
                 </Select>
               </FormControl>
-              {sources.length > 0 && (
-                <Box my={2} sx={{ width: '100%' }}>
-                  <Typography variant="subtitle1">Источник {currentSourceIndex + 1}</Typography>
-                  {currentFields
-                    .filter(field => !['volume', 'number', 'issue'].includes(field))
-                    .map((field) => {
-                      const isYearField = field === 'year';
-                      const isNumericField = ['year'].includes(field);
-                      const isPageField = field === 'pages';
-                      const fieldValue = sources[currentSourceIndex].fields[field] || '';
-                      const isInvalidYear = isYearField && fieldValue && 
-                                          (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
-                      const isInvalidPage = isPageField && fieldValue && 
-                                          !(/^\d+$/.test(fieldValue) || /^\d+[-]{1,2}\d+$/.test(fieldValue));
-                      const requiredFields = getRequiredFieldsForType(sources[currentSourceIndex].type || 'misc', sources[currentSourceIndex].fields.title || '');
-                      const isMissingField = requiredFields.includes(field) && !fieldValue;
 
-                      return (
-                        <TextField
-                          key={field}
-                          fullWidth
-                          margin="dense"
-                          label={field}
-                          value={fieldValue}
-                          onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
-                          sx={{
-                            width: '100%',
-                            '& .MuiInputBase-input': {
-                              textDecoration: isMissingField ? 'underline red' : 'none',
-                              color: isMissingField || isInvalidYear || isInvalidPage ? 'error.main' : 'text.primary'
-                            },
-                          }}
-                          error={isMissingField || isInvalidYear || isInvalidPage}
-                          helperText={
-                            isMissingField 
-                              ? 'Обязательное поле' 
-                              : isInvalidYear
-                                ? isNaN(fieldValue) 
-                                  ? 'Год должен быть числом' 
-                                  : `Год не может быть больше текущего (${currentYear})`
-                                : isInvalidPage
-                                  ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
-                                  : ''
-                          }
-                          inputProps={{
-                            ...(isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*', type: 'text' } : {}),
-                            ...(isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {})
-                          }}
-                        />
-                      );
-                    })}
-                  {sources[currentSourceIndex].type === 'article' && (
-                    <Box sx={{ display: 'flex', gap: 2, mt: 1, flexWrap: 'wrap' }}>
-                      {['volume', 'number', 'issue'].map((field) => {
-                        const fieldValue = sources[currentSourceIndex].fields[field] || '';
-                        const isInvalidNumeric = fieldValue && !/^\d+$/.test(fieldValue);
-                        const hasPublicationFields = ['volume', 'number', 'issue'].some(f => 
-                          sources[currentSourceIndex].fields[f] && sources[currentSourceIndex].fields[f].trim() !== ''
-                        );
+              {createModalState.currentFields
+                .filter(field => !['volume', 'number', 'issue'].includes(field))
+                .map((field) => {
+                  const isYearField = field === 'year';
+                  const isNumericField = ['year'].includes(field);
+                  const isPageField = field === 'pages';
+                  const fieldValue = createModalState.sources[createModalState.currentSourceIndex].fields[field] || '';
+                  const isInvalidYear = isYearField && fieldValue && 
+                    (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
+                  const isInvalidPage = isPageField && fieldValue && 
+                    !(/^\d+$/.test(fieldValue) || /^\d+[-]{1,2}\d+$/.test(fieldValue));
+                  const requiredFields = getRequiredFieldsForType(
+                    createModalState.sources[createModalState.currentSourceIndex].type || 'misc',
+                    createModalState.sources[createModalState.currentSourceIndex].fields.title || ''
+                  );
+                  const isMissingField = requiredFields.includes(field) && !fieldValue;
 
-                        return (
-                          <TextField
-                            key={field}
-                            margin="dense"
-                            label={field}
-                            value={fieldValue}
-                            onChange={(e) => handleSourceChange(currentSourceIndex, field, e.target.value)}
-                            sx={{
-                              flex: '1 1 30%',
-                              minWidth: '100px',
-                              '& .MuiInputBase-input': {
-                                color: isInvalidNumeric || (!hasPublicationFields && !fieldValue) ? 'error.main' : 'text.primary'
-                              },
-                            }}
-                            error={isInvalidNumeric || (!hasPublicationFields && !fieldValue)}
-                            helperText={
-                              isInvalidNumeric
-                                ? 'Поле должно содержать только число'
-                                : (!hasPublicationFields && !fieldValue)
-                                  ? 'Заполните хотя бы одно из этих полей'
-                                  : ''
-                            }
-                            inputProps={{
-                              inputMode: 'numeric',
-                              pattern: '[0-9]*',
-                              type: 'text'
-                            }}
-                          />
-                        );
-                      })}
-                      <Typography variant="caption" sx={{ width: '100%', color: 'text.secondary', mt: -1 }}>
-                        Возможно, у вашего источника могут отсутствовать некоторые из этих полей.
-                      </Typography>
-                    </Box>
-                  )}
+                  return (
+                    <TextField
+                      key={field}
+                      fullWidth
+                      margin="normal"
+                      label={field.charAt(0).toUpperCase() + field.slice(1) + (requiredFields.includes(field) ? ' *' : '')}
+                      value={fieldValue}
+                      onChange={(e) => handleSourceChange(createModalState.currentSourceIndex, field, e.target.value)}
+                      sx={{
+                        '& .MuiInputBase-root': {
+                          borderRadius: '8px',
+                        },
+                        '& .MuiInputBase-input': {
+                          textDecoration: isMissingField ? 'underline red wavy' : 'none',
+                          color: isMissingField || isInvalidYear || isInvalidPage ? 'error.main' : 'text.primary',
+                        },
+                      }}
+                      error={isMissingField || isInvalidYear || isInvalidPage}
+                      helperText={
+                        isMissingField 
+                          ? 'Обязательное поле' 
+                          : isInvalidYear
+                            ? isNaN(fieldValue) 
+                              ? 'Год должен быть числом' 
+                              : `Год не может быть больше текущего (${currentYear})`
+                            : isInvalidPage
+                              ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
+                              : ''
+                      }
+                      inputProps={{
+                        ...(isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*', type: 'text' } : {}),
+                        ...(isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {}),
+                      }}
+                    />
+                  );
+                })}
+
+              {createModalState.sources[createModalState.currentSourceIndex].type === 'article' && (
+                <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap' }}>
+                  {['volume', 'number', 'issue'].map((field) => {
+                    const fieldValue = createModalState.sources[createModalState.currentSourceIndex].fields[field] || '';
+                    const isInvalidNumeric = fieldValue && !/^\d+$/.test(fieldValue);
+                    const hasPublicationFields = ['volume', 'number', 'issue'].some(f => 
+                      createModalState.sources[createModalState.currentSourceIndex].fields[f] && 
+                      createModalState.sources[createModalState.currentSourceIndex].fields[f].trim() !== ''
+                    );
+
+                    return (
+                      <TextField
+                        key={field}
+                        margin="normal"
+                        label={field.charAt(0).toUpperCase() + field.slice(1)}
+                        value={fieldValue}
+                        onChange={(e) => handleSourceChange(createModalState.currentSourceIndex, field, e.target.value)}
+                        sx={{
+                          flex: '1 1 30%',
+                          minWidth: '120px',
+                          '& .MuiInputBase-root': { borderRadius: '8px' },
+                          '& .MuiInputBase-input': {
+                            color: isInvalidNumeric || (!hasPublicationFields && !fieldValue) ? 'error.main' : 'text.primary',
+                          },
+                        }}
+                        error={isInvalidNumeric || (!hasPublicationFields && !fieldValue)}
+                        helperText={
+                          isInvalidNumeric
+                            ? 'Поле должно содержать только число'
+                            : (!hasPublicationFields && !fieldValue)
+                              ? 'Заполните хотя бы одно из этих полей'
+                              : ''
+                        }
+                        inputProps={{
+                          inputMode: 'numeric',
+                          pattern: '[0-9]*',
+                          type: 'text',
+                        }}
+                      />
+                    );
+                  })}
+                  <Typography variant="caption" sx={{ width: '100%', color: 'text.secondary', mt: 1 }}>
+                    Возможно, у вашего источника могут отсутствовать некоторые из этих полей.
+                  </Typography>
                 </Box>
               )}
-              <Box display="flex" justifyContent="space-between" mt={2} sx={{ width: '100%' }}>
-                <Button variant="outlined" onClick={() => navigateSource('prev')} disabled={currentSourceIndex === 0} sx={{ width: '48%' }}>Предыдущий</Button>
-                <Button variant="outlined" onClick={() => navigateSource('next')} disabled={currentSourceIndex === sources.length - 1} sx={{ width: '48%' }}>Следующий</Button>
-              </Box>
-              <Button fullWidth variant="contained" onClick={addSource} sx={{ mt: 2, width: '100%' }}>Добавить источник</Button>
-              {hasSource && <Button fullWidth variant="outlined" onClick={saveBibFiles} sx={{ mt: 2, width: '100%' }}>Сохранить</Button>}
-            </Paper>
-          </Fade>
-        </Modal>
+            </AccordionDetails>
+          </Accordion>
+        </Box>
+      )}
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="body2" color="text.secondary">
+          Источников: {createModalState.sources.length}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="outlined"
+            onClick={() => navigateSource('prev')}
+            disabled={createModalState.currentSourceIndex === 0}
+            sx={{ borderRadius: '8px', px: 3 }}
+          >
+            Назад
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => navigateSource('next')}
+            disabled={createModalState.currentSourceIndex === createModalState.sources.length - 1}
+            sx={{ borderRadius: '8px', px: 3 }}
+          >
+            Вперед
+          </Button>
+        </Box>
+      </Box>
+
+      <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+        <Button
+          fullWidth
+          variant="contained"
+          color="primary"
+          onClick={addSource}
+          sx={{ borderRadius: '8px', py: 1.2 }}
+        >
+          Добавить источник
+        </Button>
+      </Box>
+
+      <Box
+        sx={{
+          position: 'sticky',
+          bottom: 0,
+          bgcolor: 'background.paper',
+          boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
+          pt: 2,
+          pb: 1,
+          zIndex: 2,
+          display: 'flex',
+          gap: 2,
+          justifyContent: 'space-between',
+        }}
+      >
+        <Button
+          variant="outlined"
+          color="error"
+          onClick={() => {
+            const initialType = 'article';
+            const initialFields = getBaseFieldsForType(initialType).reduce((acc, field) => ({ ...acc, [field]: '' }), {});
+            setCreateModalState({
+              sources: [{ type: initialType, fields: initialFields }],
+              currentSourceIndex: 0,
+              currentFields: getBaseFieldsForType(initialType),
+              hasSource: true,
+            });
+          }}
+          sx={{ flex: 1, borderRadius: '8px', py: 1.2 }}
+        >
+          Сбросить
+        </Button>
+        <Button
+          variant="contained"
+          color="success"
+          startIcon={<CheckCircleIcon />}
+          onClick={saveBibFiles}
+          sx={{ flex: 1, borderRadius: '8px', py: 1.2 }}
+        >
+          Сохранить
+        </Button>
+      </Box>
+    </Paper>
+  </Fade>
+</Modal>
 
         <Modal
   open={editModalOpen}
@@ -1704,8 +1844,8 @@ const handleEditFile = async (file) => {
   <Fade in={editModalOpen}>
     <Paper
       sx={{
-        width: { xs: '90%', sm: '80%', md: '70%' },
-        p: 3,
+        width: { xs: '95%', sm: '85%', md: '75%' },
+        p: 2,
         position: 'fixed',
         top: '50%',
         left: '50%',
@@ -1713,12 +1853,11 @@ const handleEditFile = async (file) => {
         borderRadius: '15px',
         boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
         background: 'background.paper',
-        height: '90vh',
-        maxHeight: 'none',
+        maxHeight: '90vh', // ограничение высоты
+        overflowY: 'auto', // вертикальная прокрутка
         display: 'flex',
         flexDirection: 'column',
         zIndex: 1300,
-        overflowY: 'auto',
       }}
     >
       <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
