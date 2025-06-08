@@ -66,20 +66,39 @@ def validate_author_format(author, entry_id, line_number):
     if not author or author.strip() == "":
         logger.warning(f"Empty author field in entry '{entry_id}' (line {line_number})")
         return f"Поле 'author' пустое в записи '{entry_id}' (строка {line_number})"
-    # Регулярное выражение для одного автора: surname, name [patronymic]
-    single_author_pattern = r'^[^{}]+,\s*[^{}]+$'
-    # Регулярное выражение для нескольких авторов: surname, name [patronymic] and surname, name [patronymic]
-    multi_author_pattern = r'^[^{}]+,\s*[^{}]+(\s*and\s*[^{}]+,\s*[^{}]+)*$'
+    
+    # Регулярное выражение для одного автора: surname, initials [patronymic]
+    single_author_pattern = r'^[^{}\s]+,\s*[^{}\s]+(?:\s*[^{}\s]+)?$'
+    # Регулярное выражение для нескольких авторов: surname, initials [patronymic] and surname, initials [patronymic]
+    multi_author_pattern = r'^[^{}\s]+,\s*[^{}\s]+(?:\s*[^{}\s]+)?(?:\s*and\s*[^{}\s]+,\s*[^{}\s]+(?:\s*[^{}\s]+)?)*$'
+
+    # Проверяем формат строки
     if not (re.match(single_author_pattern, author) or re.match(multi_author_pattern, author)):
         logger.warning(f"Invalid author format: '{author}' in entry '{entry_id}' (line {line_number})")
-        return f"Неверный формат поля 'author' в записи '{entry_id}' (строка {line_number}): ожидается 'surname, name [patronymic]' или 'surname, name [patronymic] and surname, name [patronymic]'"
-    # Проверяем каждого автора отдельно
+        return f"Неверный формат поля 'author' в записи '{entry_id}' (строка {line_number}): ожидается 'surname, initials [patronymic]' или 'surname, initials [patronymic] and surname, initials [patronymic]'"
+
+    # Проверяем, что авторы разделены только через 'and', а не пробелами
     authors = [a.strip() for a in author.split(" and ")]
+    if " and " not in author and len(authors) > 1:
+        logger.warning(f"Invalid author separator in: '{author}' in entry '{entry_id}' (line {line_number})")
+        return f"Неверный разделитель авторов в записи '{entry_id}' (строка {line_number}): авторы должны быть разделены 'and', а не пробелами"
+
+    # Проверяем каждого автора отдельно
     for a in authors:
         parts = [p.strip() for p in a.split(",", 1)]  # Разделяем только по первой запятой
         if len(parts) != 2 or not parts[0] or not parts[1]:
             logger.warning(f"Invalid author component: '{a}' in entry '{entry_id}' (line {line_number})")
-            return f"Неверный формат автора '{a}' в записи '{entry_id}' (строка {line_number}): ожидается 'surname, name [patronymic]'"
+            return f"Неверный формат автора '{a}' в записи '{entry_id}' (строка {line_number}): ожидается 'surname, initials [patronymic]'"
+        
+        # Проверяем, что фамилия и инициалы не содержат недопустимых символов
+        surname, rest = parts
+        if not re.match(r'^[^{}\s]+$', surname):
+            logger.warning(f"Invalid surname format: '{surname}' in '{a}' (entry '{entry_id}', line {line_number})")
+            return f"Неверный формат фамилии '{surname}' в записи '{entry_id}' (строка {line_number}): фамилия не должна содержать пробелы или фигурные скобки"
+        if not re.match(r'^[^{}\s]+(?:\s*[^{}\s]+)?$', rest):
+            logger.warning(f"Invalid initials/patronymic format: '{rest}' in '{a}' (entry '{entry_id}', line {line_number})")
+            return f"Неверный формат инициалов/отчества '{rest}' в записи '{entry_id}' (строка {line_number}): ожидается 'initials [patronymic]'"
+
     logger.debug(f"Author field '{author}' is valid")
     return None
 
