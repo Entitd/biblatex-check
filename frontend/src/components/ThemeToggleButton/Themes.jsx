@@ -147,7 +147,7 @@ export const darkTheme = createTheme({
         MuiTextField: {
             styleOverrides: {
                 root: {
-                    backgroundColor: '#161b22', // Фон для TextField
+                    backgroundColor: '#23282e', // Фон для TextField
                     '& .MuiInputBase-input': {
                         color: '#c9d1d9', // Цвет текста в поле ввода
                     },
