@@ -1133,6 +1133,7 @@ const handleEditFile = async (file) => {
                         }
                       }}
                     >
+                      <MenuItem> Вы вошли как: <strong>{user.username}</strong></MenuItem>
                       <MenuItem onClick={handleLogout}>Выйти</MenuItem>
                     </Menu>
                   </>

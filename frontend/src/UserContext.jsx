@@ -14,14 +14,19 @@ export const UserProvider = ({ children }) => {
   const [user, setUser] = useState(null);
 
   const login = async (username, password) => {
-    try {
-      const response = await authAxios.post('/api/login', { username, password });
-      setUser(response.data.user);
-      return response.data;
-    } catch (error) {
-      throw error;
+  try {
+    const response = await authAxios.post('/api/login', { username, password });
+
+    if (response.status === 200) {
+      const userData = await fetchProfile(); // Ждём данные пользователя
+      return { message: "Успешный вход", user: userData };
     }
-  };
+
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
 
   const refreshToken = async () => {
     try {
@@ -36,23 +41,28 @@ export const UserProvider = ({ children }) => {
   };
 
   const fetchProfile = async () => {
-    try {
-      const response = await authAxios.get('/api/profile');
-      setUser(response.data);
-    } catch (error) {
-      if (error.response?.status === 401) {
-        const refreshed = await refreshToken();
-        if (refreshed) {
-          fetchProfile(); // Повторяем запрос после успешного обновления токена
-        } else {
-          setUser(null);
-        }
+  try {
+    const response = await authAxios.get('/api/profile');
+    const userData = response.data;
+    setUser(userData);
+    return userData; // ✅ Возвращаем данные
+  } catch (error) {
+    if (error.response?.status === 401) {
+      const refreshed = await refreshToken();
+      if (refreshed) {
+        const userData = await fetchProfile();
+        return userData;
       } else {
-        console.error("Error fetching profile:", error.response?.data || error.message);
         setUser(null);
+        return null;
       }
+    } else {
+      console.error("Error fetching profile:", error.response?.data || error.message);
+      setUser(null);
+      return null;
     }
-  };
+  }
+};
 
   useEffect(() => {
     fetchProfile();
