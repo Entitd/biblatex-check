@@ -1695,6 +1695,7 @@ const PersonalAccount = () => {
               <Button
                 fullWidth
                 variant="outlined"
+                color="warning" 
                 onClick={() => {
                   const initialType = 'article';
                   const initialFields = getBaseFieldsForType(initialType).reduce((acc, field) => {
@@ -1712,7 +1713,7 @@ const PersonalAccount = () => {
               >
                 Сброс
               </Button>
-              {hasSource && <Button fullWidth variant="outlined" onClick={saveBibFiles} sx={{ mt: 2, width: '100%' }}>Сохранить</Button>}
+              {hasSource && <Button fullWidth variant="outlined" onClick={saveBibFiles} color="success" sx={{ mt: 2, width: '100%' }}>Сохранить</Button>}
             </Paper>
           </Fade>
         </Modal>
