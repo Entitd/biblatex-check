@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect } from "react";
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
-import { lightTheme, darkTheme } from './Themes'; // Импортируем ваши темы
+import { lightTheme, darkTheme } from './Themes';
 
 export const ThemeContext = createContext();
 
@@ -17,7 +17,6 @@ export const ThemeProvider = ({ children }) => {
         localStorage.setItem('theme', newTheme); // Сохранение темы в localStorage
     };
 
-    // Выбираем тему Material-UI в зависимости от текущей темы
     const muiTheme = theme === "light" ? lightTheme : darkTheme;
 
     return (

@@ -7,7 +7,7 @@ import logging
 import re
 from pathlib import Path
 
-logging.basicConfig(level=logging.DEBUG)  # Устанавливаем DEBUG для диагностики
+logging.basicConfig(level=logging.DEBUG)  # DEBUG для диагностики
 logger = logging.getLogger(__name__)
 
 # Словарь обязательных полей для каждого типа записи
@@ -250,7 +250,7 @@ def validate_bibtex_file(file_contents: str):
             if year > current_year:
                 errors.append(f"Год публикации {year} в будущем для записи '{entry['ID']}' (строка {line_number})")
 
-        # Исключаем online/mis из подсчёта статистики
+        # Исключаем online из подсчёта статистики
         if original_entry_type not in ["online"]:
             total_count += 1
 

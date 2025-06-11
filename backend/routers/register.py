@@ -1,18 +1,18 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from models.models import User  # Импортируйте вашу модель пользователя
-from hashing import hash_password  # Импортируйте функцию хеширования пароля
-from database import get_db  # Импортируйте вашу сессию базы данных
+from models.models import User
+from hashing import hash_password
+from database import get_db
 
 router = APIRouter()
 
-# Модель для данных с фронтенда
+
 class UserCreate(BaseModel):
     username: str
     password: str
 
-# Регистрация пользователя
+
 @router.post("/api/register")
 async def register_user(user: UserCreate, db: Session = Depends(get_db)):
     # Проверка, существует ли уже пользователь с таким логином
@@ -27,7 +27,7 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
     new_user = User(
         username=user.username,
         hashed_password=hashed_password,
-        email=user.username,  # Используем username вместо email
+        email=user.username,  # Используем username вместо email(думал делать связку по email, потом решил не делать)
     )
 
     db.add(new_user)

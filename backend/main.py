@@ -27,18 +27,16 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Настройка базы данных
-SQLALCHEMY_DATABASE_URL = "postgresql://postgres:qwerty@db:5432/postgres"  # Замени на свою БД, если нужно
+SQLALCHEMY_DATABASE_URL = "postgresql://postgres:qwerty@db:5432/postgres"
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 
 Base.metadata.create_all(bind=engine)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Инициализация FastAPI и планировщика
 app = FastAPI()
 scheduler = AsyncIOScheduler()
 
-# CORS
 origins = [
     "http://bibcheck.ru",
     "https://bibcheck.ru",
@@ -55,16 +53,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключение маршрутов
 app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(files.router)
 
-#app.mount("/", StaticFiles(directory="/app/frontend_dist", html=True), name="static")
 # Монтирование статических файлов
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
-# Импорт зависимостей из auth
 from routers.auth import get_current_user
 
 # Функция очистки устаревших гостевых сессий

@@ -13,7 +13,6 @@ def get_user_examinations(db: Session, user_id: int):
     result = db.execute(stmt).scalars().all()
     examinations = []
     for exam in result:
-        # Revalidate file content to get next_course_requirements
         file_path = Path(exam.download_link_edited or exam.download_link_source)
         validation_result = {"errors": [], "course_compliance": exam.course_compliance, "next_course_requirements": {}}
         if file_path.exists():

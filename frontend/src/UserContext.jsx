@@ -6,7 +6,6 @@ import CookieBanner from "./components/CookieBanner/CookieBanner";
 export const UserContext = createContext();
 
 const authAxios = axios.create({
-  // Убираем baseURL, чтобы использовать относительные пути
   withCredentials: true,
 });
 
@@ -45,7 +44,7 @@ export const UserProvider = ({ children }) => {
     const response = await authAxios.get('/api/profile');
     const userData = response.data;
     setUser(userData);
-    return userData; // ✅ Возвращаем данные
+    return userData;
   } catch (error) {
     if (error.response?.status === 401) {
       const refreshed = await refreshToken();

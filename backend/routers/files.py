@@ -1,10 +1,6 @@
 from fastapi import APIRouter
-# Импорт зависимостей из auth
 from routers.auth import get_current_user
-
-
 import logging
-
 import os
 import uuid
 from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, Query, Form
@@ -40,7 +36,6 @@ async def get_user_files(user_id: int, db: Session = Depends(get_db)):
     
     result = []
     for file in user_files:
-        # Revalidate file content to get next_course_requirements
         file_path = Path(file.download_link_edited or file.download_link_source)
         validation_result = {"errors": [], "course_compliance": file.course_compliance, "next_course_requirements": {}}
         if file_path.exists():
@@ -65,11 +60,10 @@ async def get_user_files(user_id: int, db: Session = Depends(get_db)):
 
 @router.get("/download/{file_path:path}")
 async def download_file(file_path: str):
-    full_path = Path(file_path)  # Предполагается, что file_path — это путь к файлу
+    full_path = Path(file_path)
     if not full_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
 
-    # Кодируем имя файла для заголовка Content-Disposition
     encoded_filename = urllib.parse.quote(full_path.name)
     headers = {
         "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"

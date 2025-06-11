@@ -1,11 +1,5 @@
 import React, { useContext, useState } from "react";
-import {
-  Modal,
-  Box,
-  Typography,
-  Button,
-  Stack,
-} from '@mui/material';
+import {Modal, Box, Typography, Button, Stack} from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { ThemeContext } from '../ThemeToggleButton/ThemeContext';
@@ -13,13 +7,11 @@ import { ThemeContext } from '../ThemeToggleButton/ThemeContext';
 const HelpComponent = () => {
   const { isDarkMode } = useContext(ThemeContext);
   const [open, setOpen] = useState(false);
-
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
 
   return (
     <>
-      {/* Блок справки с текстом и иконкой */}
       <Stack
         direction="row"
         alignItems="center"
@@ -31,19 +23,19 @@ const HelpComponent = () => {
           borderRadius: '4px',
           backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0)' : 'rgba(255, 255, 255, 0)',
           color: isDarkMode ? '#ffffff' : '#1976d2',
-          border: '1px solid transparent', // Прозрачная граница по умолчанию
+          border: '1px solid transparent',
           '&:hover': {
             backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
             borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(25, 118, 210, 0.5)',
           },
-          transition: 'all 0.3s ease', // Анимируем все свойства
+          transition: 'all 0.3s ease',
         }}
       >
         <Typography variant="body1">Справка</Typography>
         <HelpOutlineIcon fontSize="small" />
       </Stack>
 
-      {/* Модальное окно */}
+
       <Modal open={open} onClose={handleClose}>
         <Box
           sx={{
@@ -91,7 +83,7 @@ const HelpComponent = () => {
                   size="medium"
                   sx={{
                     minWidth: '160px',
-                    height: '50px', // Такая же высота как у поля поиска
+                    height: '50px',
                     px: 3,
                   }}
                 >
@@ -106,7 +98,7 @@ const HelpComponent = () => {
                   size="medium"
                   sx={{
                     minWidth: '160px',
-                    height: '50px', // Такая же высота как у поля поиска
+                    height: '50px',
                     px: 3,
                   }}
                 >
@@ -119,7 +111,7 @@ const HelpComponent = () => {
                     size="medium"
                     sx={{
                       minWidth: '160px',
-                      height: '50px', // Такая же высота как у поля поиска
+                      height: '50px',
                       px: 3,
                     }}
                   >
@@ -129,7 +121,7 @@ const HelpComponent = () => {
                     size="medium"
                     sx={{
                       minWidth: '160px',
-                      height: '50px', // Такая же высота как у поля поиска
+                      height: '50px',
                       px: 3,
                     }}
                   >
@@ -143,7 +135,7 @@ const HelpComponent = () => {
                     size="medium"
                     sx={{
                       minWidth: '160px',
-                      height: '50px', // Такая же высота как у поля поиска
+                      height: '50px',
                       px: 3,
                     }}
                   >
@@ -164,12 +156,13 @@ const HelpComponent = () => {
                     size="medium"
                     sx={{
                       minWidth: '160px',
-                      height: '50px', // Такая же высота как у поля поиска
+                      height: '50px',
                       px: 3,
                     }}
                   >
                     Загрузить bib-файл
-                  </Button>" и далее выбрать необходимый файл из стандартного проводника вашей системы.</li>
+                  </Button>" и далее выбрать необходимый файл из стандартного проводника вашей системы.
+              </li>
             </ul>           
           </Typography>
 

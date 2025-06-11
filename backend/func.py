@@ -1,9 +1,7 @@
 from sqlalchemy import insert
 from sqlalchemy.orm import Session
 from datetime import datetime
-
-# Импортируйте ваши таблицы
-from .models.models import User, Examination  # Убедитесь, что путь к моделям правильный
+from .models.models import User, Examination
 
 # Функция для добавления нового пользователя
 def create_user(db: Session, email: str, username: str, password: str):

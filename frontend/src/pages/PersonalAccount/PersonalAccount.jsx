@@ -63,8 +63,6 @@ const PersonalAccount = () => {
   });
 
 
-
-  // Функция для склонения слова "ошибка"
   const declineErrors = (count) => {
     if (count % 10 === 1 && count % 100 !== 11) {
       return "ошибка";
@@ -156,11 +154,11 @@ const PersonalAccount = () => {
   };
 
 
-const handleCloseModal = () => {
-  setSavedFormData({ sources: [...sources] }); // Сохраняем все источники
-  setModalOpen(false);
-  setError(null);
-};
+  const handleCloseModal = () => {
+    setSavedFormData({ sources: [...sources] }); // Сохраняем все источники
+    setModalOpen(false);
+    setError(null);
+  };
 
   const [savedFormData, setSavedFormData] = useState(null);
 
@@ -276,7 +274,7 @@ const handleCloseModal = () => {
     const sourceLines = [];
     let currentSource = { type: '', fields: {}, lineStart: 0 };
 
-    console.log("Parsing BibTeX content:", content); // Отладка
+    console.log("Parsing BibTeX content:", content);
 
     lines.forEach((line, idx) => {
         line = line.trim();
@@ -293,7 +291,7 @@ const handleCloseModal = () => {
                     id: match[2].trim()
                 };
                 sourceLines.push(idx);
-                console.log(`Found entry: type=${match[1]}, id=${match[2]}`); // Отладка
+                console.log(`Found entry: type=${match[1]}, id=${match[2]}`);
             }
         } else if (currentSource.type && line.includes('=')) {
             const match = line.match(/^\s*(\w+)\s*=\s*\{([^}]*)\}/);
@@ -301,55 +299,52 @@ const handleCloseModal = () => {
                 const key = match[1].trim();
                 const value = match[2].trim();
                 currentSource.fields[key] = value;
-                console.log(`Parsed field: ${key} = ${value}`); // Отладка
+                console.log(`Parsed field: ${key} = ${value}`);
             } else {
                 // Обработка случаев без фигурных скобок (для совместимости)
                 const [key, value] = line.split('=').map(s => s.trim());
                 if (key && value) {
                     currentSource.fields[key] = value.replace(/[,;]?\s*$/, '').trim();
-                    console.log(`Parsed non-braced field: ${key} = ${value}`); // Отладка
+                    console.log(`Parsed non-braced field: ${key} = ${value}`);
                 }
             }
         } else if (line.includes('}') && currentSource.type) {
             sources.push({ ...currentSource, lineEnd: idx });
             currentSource = { type: '', fields: {}, lineStart: 0 };
-            console.log("Closed entry:", currentSource); // Отладка
+            console.log("Closed entry:", currentSource);
         }
     });
 
     // Добавляем последнюю запись, если она не закрыта
     if (currentSource.type) {
         sources.push({ ...currentSource, lineEnd: lines.length - 1 });
-        console.log("Added final entry:", currentSource); // Отладка
+        console.log("Added final entry:", currentSource);
     }
 
-    console.log("Parsed sources:", sources); // Отладка
+    console.log("Parsed sources:", sources);
     return { sources, sourceLines };
-};
+  };
 
-const handleTypeChange = (index, type, isEditing = false) => {
-  const updatedSources = [...sources];
-  const currentFields = updatedSources[index].fields;
-  const title = currentFields.title || '';
+  const handleTypeChange = (index, type, isEditing = false) => {
+    const updatedSources = [...sources];
+    const currentFields = updatedSources[index].fields;
+    const title = currentFields.title || '';
 
-  // Get standard and required fields for the new type
-  const standardFields = getFieldsForType(type, title);
-  const requiredFields = getRequiredFieldsForType(type, title);
-  const validFields = [...new Set([...standardFields, ...requiredFields])]; // Combine and deduplicate
+    const standardFields = getFieldsForType(type, title);
+    const requiredFields = getRequiredFieldsForType(type, title);
+    const validFields = [...new Set([...standardFields, ...requiredFields])];
 
-  // Create new fields object, keeping only valid fields from currentFields
-  const newFields = {};
-  validFields.forEach(field => {
-    newFields[field] = currentFields[field] || ''; // Preserve existing values or set empty string
-  });
+    const newFields = {};
+    validFields.forEach(field => {
+      newFields[field] = currentFields[field] || '';
+    });
 
-  // Update the source
-  updatedSources[index].type = type;
-  updatedSources[index].fields = newFields;
+    updatedSources[index].type = type;
+    updatedSources[index].fields = newFields;
 
-  setSources(updatedSources);
-  setCurrentFields(standardFields);
-};
+    setSources(updatedSources);
+    setCurrentFields(standardFields);
+  };
 
   const currentYear = new Date().getFullYear();
 
@@ -367,7 +362,6 @@ const handleTypeChange = (index, type, isEditing = false) => {
     const updatedSources = [...sources];
 
     if (singleNumericFields.includes(field)) {
-      // Allow only digits or empty string
       if (value === '' || /^\d+$/.test(value)) {
         updatedSources[index] = {
           ...updatedSources[index],
@@ -409,7 +403,6 @@ const handleTypeChange = (index, type, isEditing = false) => {
         },
       };
     }
-
     setSources(updatedSources);
   };
 
@@ -417,16 +410,13 @@ const handleTypeChange = (index, type, isEditing = false) => {
     const nonEmptySources = sources.filter(source => 
       Object.values(source.fields).some(value => value.trim() !== '')
     );
-  
     if (nonEmptySources.length === 0) {
       setError("Создаваемый файл не может быть пустым");
       return;
     }
-  
     const yearErrors = nonEmptySources.filter(source => 
       source.fields.year && (isNaN(source.fields.year) || parseInt(source.fields.year) > currentYear)
     );
-
     const numericFieldErrors = nonEmptySources.map((source, idx) => {
       const errors = [];
       if (source.fields.volume && !/^\d+$/.test(source.fields.volume)) {
@@ -475,10 +465,10 @@ const handleTypeChange = (index, type, isEditing = false) => {
           message: "Файл сохранён, но содержит предупреждения",
           severity: "warning"
         });
-setSavedFormData(null); // Очистка данных
-setModalOpen(false);
-setSources([]);
-fetchFiles();
+        setSavedFormData(null);
+        setModalOpen(false);
+        setSources([]);
+        fetchFiles();
         const errorLines = {};
         (response.data?.errors || []).forEach(error => {
           const match = error.match(/\(строка (\d+)\)$/);
@@ -487,21 +477,19 @@ fetchFiles();
   
         setEditedLines(errorLines);
       } else {
-setSnackbar({
-  open: true,
-  message: "Файл успешно сохранён",
-  severity: "success"
-});
-setSavedFormData(null); // Очистка данных
-setModalOpen(false);
-setSources([]);
-fetchFiles();
+        setSnackbar({
+          open: true,
+          message: "Файл успешно сохранён",
+          severity: "success"
+        });
+        setSavedFormData(null); // Очистка данных
+        setModalOpen(false);
+        setSources([]);
+        fetchFiles();
       }
-  
       setModalOpen(false);
       setSources([]);
       fetchFiles();
-  
     } catch (error) {
       console.error("Ошибка сохранения:", error);
       setError(`Ошибка сохранения: ${error.response?.data?.detail || error.message}`);
@@ -519,136 +507,135 @@ fetchFiles();
   };
 
   const handleCreateBibFile = () => {
-  let initialSources;
-  if (savedFormData && Array.isArray(savedFormData.sources)) {
-    initialSources = [...savedFormData.sources];
-  } else {
-    const initialType = 'article';
-    const initialFields = getBaseFieldsForType(initialType).reduce((acc, field) => {
-      acc[field] = '';
-      return acc;
-    }, {});
-    initialSources = [{ type: initialType, fields: initialFields }];
-  }
+    let initialSources;
+    if (savedFormData && Array.isArray(savedFormData.sources)) {
+      initialSources = [...savedFormData.sources];
+    } else {
+      const initialType = 'article';
+      const initialFields = getBaseFieldsForType(initialType).reduce((acc, field) => {
+        acc[field] = '';
+        return acc;
+      }, {});
+      initialSources = [{ type: initialType, fields: initialFields }];
+    }
 
-  setModalOpen(true);
-  setSources(initialSources);
-  setCurrentSourceIndex(0);
-  setCurrentFields(getFieldsForType(initialSources[0].type, initialSources[0].fields.title || ''));
-  setHasSource(true);
-};
+    setModalOpen(true);
+    setSources(initialSources);
+    setCurrentSourceIndex(0);
+    setCurrentFields(getFieldsForType(initialSources[0].type, initialSources[0].fields.title || ''));
+    setHasSource(true);
+  };
 
-const handleEditFile = async (file) => {
-  try {
-    const endpoint = isGuest
-      ? `/api/guest/get-bib-content?file_id=${file.id}&sessionId=${sessionId}`
-      : `/api/get-bib-content?file_id=${file.id}`;
-    const response = await (isGuest ? guestAxios : authAxios).get(endpoint);
-    const content = response.data.content;
-    const { sources: parsedSources, sourceLines } = parseBibFile(content);
+  const handleEditFile = async (file) => {
+    try {
+      const endpoint = isGuest
+        ? `/api/guest/get-bib-content?file_id=${file.id}&sessionId=${sessionId}`
+        : `/api/get-bib-content?file_id=${file.id}`;
+      const response = await (isGuest ? guestAxios : authAxios).get(endpoint);
+      const content = response.data.content;
+      const { sources: parsedSources, sourceLines } = parseBibFile(content);
 
-    let errorLines = {};
-    if (file.errors) {
-      console.log("File errors (raw):", file.errors);
+      let errorLines = {};
+      if (file.errors) {
+        console.log("File errors (raw):", file.errors);
 
-      let errorMessages = [];
-      if (Array.isArray(file.errors)) {
-        errorMessages = file.errors.map(msg => msg.trim()).filter(msg => msg);
-      } else if (typeof file.errors === 'string') {
-        errorMessages = file.errors.split('\n').map(msg => msg.trim()).filter(msg => msg);
-      } else {
-        console.warn("Unexpected file.errors format:", file.errors);
+        let errorMessages = [];
+        if (Array.isArray(file.errors)) {
+          errorMessages = file.errors.map(msg => msg.trim()).filter(msg => msg);
+        } else if (typeof file.errors === 'string') {
+          errorMessages = file.errors.split('\n').map(msg => msg.trim()).filter(msg => msg);
+        } else {
+          console.warn("Unexpected file.errors format:", file.errors);
+        }
+
+        errorMessages.forEach((error, idx) => {
+          console.log(`Parsing error ${idx}:`, error);
+
+          // Извлечение поля из ошибки
+          let field = null;
+          // Проверяем, содержит ли ошибка 'author' или 'автора'
+          if (error.toLowerCase().includes("'author'") || error.toLowerCase().includes("автора")) {
+            field = "author";
+          } else {
+            const fieldMatch = error.match(/поле '([^']+)'/i);
+            if (fieldMatch) {
+              field = fieldMatch[1].toLowerCase();
+            }
+          }
+
+          const idMatch = error.match(/записи '([^']+)'/i);
+          const lineMatch = error.match(/\(строка (\d+)\)/i);
+          const recordId = idMatch ? idMatch[1] : null;
+          const lineNumber = lineMatch ? parseInt(lineMatch[1], 10) - 1 : null;
+
+          if (!field) {
+            console.warn(`No field found in error: ${error}`);
+            if (!errorLines["general"]) errorLines["general"] = [];
+            errorLines["general"].push(error.trim());
+            return;
+          }
+
+          let sourceIndex = -1;
+          if (lineNumber !== null && sourceLines && sourceLines.length > 0) {
+            sourceIndex = sourceLines.findIndex((startLine, idx) => {
+              const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
+              return lineNumber >= startLine && lineNumber < nextStartLine;
+            });
+          }
+          if (sourceIndex === -1 && recordId) {
+            sourceIndex = parsedSources.findIndex(source => source.id === recordId);
+          }
+          if (sourceIndex === -1 && parsedSources.length > 0) {
+            sourceIndex = 0;
+          }
+          if (sourceIndex !== -1 && sourceIndex < parsedSources.length) {
+            if (!errorLines[sourceIndex]) errorLines[sourceIndex] = {};
+            errorLines[sourceIndex][field] = error.trim();
+          } else {
+            if (!errorLines["general"]) errorLines["general"] = [];
+            errorLines["general"].push(error.trim());
+          }
+        });
       }
 
-      errorMessages.forEach((error, idx) => {
-        console.log(`Parsing error ${idx}:`, error);
+      const sourcesWithRequiredFields = parsedSources.map((source, index) => {
+        const requiredFields = getRequiredFieldsForType(source.type || 'misc', source.fields.title || '');
+        const fieldsWithRequired = { ...source.fields };
 
-        // Извлечение поля из ошибки
-        let field = null;
-        // Проверяем, содержит ли ошибка 'author' или 'автора'
-        if (error.toLowerCase().includes("'author'") || error.toLowerCase().includes("автора")) {
-          field = "author";
-        } else {
-          const fieldMatch = error.match(/поле '([^']+)'/i);
-          if (fieldMatch) {
-            field = fieldMatch[1].toLowerCase();
+        requiredFields.forEach(field => {
+          if (!fieldsWithRequired[field]) {
+            fieldsWithRequired[field] = '';
           }
-        }
+        });
 
-        const idMatch = error.match(/записи '([^']+)'/i);
-        const lineMatch = error.match(/\(строка (\d+)\)/i);
-        const recordId = idMatch ? idMatch[1] : null;
-        const lineNumber = lineMatch ? parseInt(lineMatch[1], 10) - 1 : null;
-
-        if (!field) {
-          console.warn(`No field found in error: ${error}`);
-          if (!errorLines["general"]) errorLines["general"] = [];
-          errorLines["general"].push(error.trim());
-          return;
-        }
-
-        let sourceIndex = -1;
-        if (lineNumber !== null && sourceLines && sourceLines.length > 0) {
-          sourceIndex = sourceLines.findIndex((startLine, idx) => {
-            const nextStartLine = sourceLines[idx + 1] || content.split('\n').length;
-            return lineNumber >= startLine && lineNumber < nextStartLine;
-          });
-        }
-        if (sourceIndex === -1 && recordId) {
-          sourceIndex = parsedSources.findIndex(source => source.id === recordId);
-        }
-        if (sourceIndex === -1 && parsedSources.length > 0) {
-          sourceIndex = 0; // Fallback
-        }
-
-        if (sourceIndex !== -1 && sourceIndex < parsedSources.length) {
-          if (!errorLines[sourceIndex]) errorLines[sourceIndex] = {};
-          errorLines[sourceIndex][field] = error.trim();
-        } else {
-          if (!errorLines["general"]) errorLines["general"] = [];
-          errorLines["general"].push(error.trim());
-        }
-      });
-    }
-
-    const sourcesWithRequiredFields = parsedSources.map((source, index) => {
-      const requiredFields = getRequiredFieldsForType(source.type || 'misc', source.fields.title || '');
-      const fieldsWithRequired = { ...source.fields };
-
-      requiredFields.forEach(field => {
-        if (!fieldsWithRequired[field]) {
-          fieldsWithRequired[field] = '';
-        }
+        return {
+          ...source,
+          fields: fieldsWithRequired,
+          errors: errorLines[index] || {}
+        };
       });
 
-      return {
-        ...source,
-        fields: fieldsWithRequired,
-        errors: errorLines[index] || {}
-      };
-    });
+      console.log("Sources with errors:", sourcesWithRequiredFields);
+      console.log("Error lines:", errorLines);
 
-    console.log("Sources with errors:", sourcesWithRequiredFields);
-    console.log("Error lines:", errorLines);
-
-    setSources(sourcesWithRequiredFields);
-    setCurrentSourceIndex(0);
-    setCurrentFields(getFieldsForType(sourcesWithRequiredFields[0]?.type || '', sourcesWithRequiredFields[0]?.fields.title || ''));
-    setEditContent(content);
-    setEditFileId(file.id);
-    setEditedLines(errorLines);
-    setEditModalOpen(true);
-    setHasSource(true);
-  } catch (error) {
-    if (error.response?.status === 401 && !isGuest) {
-      await refreshToken();
-      handleEditFile(file);
-    } else {
-      console.error("Error fetching file content:", error.response?.data || error.message);
-      setError("Не удалось загрузить содержимое файла: " + (error.response?.data?.detail || error.message));
+      setSources(sourcesWithRequiredFields);
+      setCurrentSourceIndex(0);
+      setCurrentFields(getFieldsForType(sourcesWithRequiredFields[0]?.type || '', sourcesWithRequiredFields[0]?.fields.title || ''));
+      setEditContent(content);
+      setEditFileId(file.id);
+      setEditedLines(errorLines);
+      setEditModalOpen(true);
+      setHasSource(true);
+    } catch (error) {
+      if (error.response?.status === 401 && !isGuest) {
+        await refreshToken();
+        handleEditFile(file);
+      } else {
+        console.error("Error fetching file content:", error.response?.data || error.message);
+        setError("Не удалось загрузить содержимое файла: " + (error.response?.data?.detail || error.message));
+      }
     }
-  }
-};
+  };
 
 
 
@@ -858,7 +845,7 @@ const handleEditFile = async (file) => {
         const content = response.data.content;
         const { sources, sourceLines } = parseBibFile(content);
 
-        console.log("File errors:", file.errors); // Отладка
+        console.log("File errors:", file.errors);
         console.log("Parsed content:", content);
         console.log("Source lines:", sourceLines);
 
@@ -884,14 +871,13 @@ const handleEditFile = async (file) => {
                             errors[sourceIndex] = error.trim();
                         }
                     } else {
-                        // Добавляем ошибки без номера строки
                         errors[`general_${idx}`] = error.trim();
                     }
                 }
             });
         }
 
-        console.log("Edited lines:", errors); // Отладка
+        console.log("Edited lines:", errors);
         setEditedLines(errors);
         setEditContent(modifiedContent.join('\n'));
         setErrorFileId(file.id);
@@ -905,7 +891,7 @@ const handleEditFile = async (file) => {
             setError("Не удалось загрузить содержимое файла: " + (error.response?.data?.detail || error.message));
         }
     }
-};
+  };
 
   const handleContentChange = (e) => {
     const newContent = e.target.value;
@@ -917,52 +903,52 @@ const handleEditFile = async (file) => {
   };
 
   const uploadBibFiles = async (event) => {
-  const uploadedFiles = event.target.files || event.dataTransfer.files;
-  if (!uploadedFiles || uploadedFiles.length === 0) {
-    console.error('No files selected for upload');
-    setError('Не выбран файл для загрузки');
-    return;
-  }
+    const uploadedFiles = event.target.files || event.dataTransfer.files;
+    if (!uploadedFiles || uploadedFiles.length === 0) {
+      console.error('No files selected for upload');
+      setError('Не выбран файл для загрузки');
+      return;
+    }
 
-  Array.from(uploadedFiles).forEach(async (file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    if (isGuest) {
-      if (!sessionId) {
-        console.error('Session ID is missing');
-        setError('Отсутствует идентификатор сессии');
-        return;
-      }
-      formData.append('sessionId', sessionId);
-    }
-    console.log('FormData entries:', [...formData.entries()]); // Логирование содержимого FormData
-    try {
+    Array.from(uploadedFiles).forEach(async (file) => {
+      const formData = new FormData();
+      formData.append('file', file);
       if (isGuest) {
-        const response = await guestAxios.post('/api/guest/upload-bib', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data', // Явно указываем для ясности
-          },
-        });
-        console.log('Upload response:', response.data);
-      } else {
-        await authAxios.post('/api/upload-bib', formData);
+        if (!sessionId) {
+          console.error('Session ID is missing');
+          setError('Отсутствует идентификатор сессии');
+          return;
+        }
+        formData.append('sessionId', sessionId);
       }
-      fetchFiles();
-    } catch (error) {
-      console.error('Ошибка загрузки файла:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        headers: error.response?.headers,
-      });
-      setError(
-        `Не удалось загрузить файл: ${
-          error.response?.data?.detail || error.message || 'Неизвестная ошибка'
-        }`
-      );
-    }
-  });
-};
+      console.log('FormData entries:', [...formData.entries()]); // Логирование содержимого FormData
+      try {
+        if (isGuest) {
+          const response = await guestAxios.post('/api/guest/upload-bib', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data', // Явно указываем для ясности
+            },
+          });
+          console.log('Upload response:', response.data);
+        } else {
+          await authAxios.post('/api/upload-bib', formData);
+        }
+        fetchFiles();
+      } catch (error) {
+        console.error('Ошибка загрузки файла:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+          headers: error.response?.headers,
+        });
+        setError(
+          `Не удалось загрузить файл: ${
+            error.response?.data?.detail || error.message || 'Неизвестная ошибка'
+          }`
+        );
+      }
+    });
+  };
 
   const handleChangePage = (event, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = (event) => {
@@ -1706,349 +1692,340 @@ const handleEditFile = async (file) => {
                 <Button variant="outlined" onClick={() => navigateSource('next')} disabled={currentSourceIndex === sources.length - 1} sx={{ width: '48%' }}>Следующий</Button>
               </Box>
               <Button fullWidth variant="contained" onClick={addSource} sx={{ mt: 2, width: '100%' }}>Добавить источник</Button>
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={() => {
+                  const initialType = 'article';
+                  const initialFields = getBaseFieldsForType(initialType).reduce((acc, field) => {
+                    acc[field] = '';
+                    return acc;
+                  }, {});
 
-<Button
-  fullWidth
-  variant="outlined"
-  onClick={() => {
-    const initialType = 'article';
-    const initialFields = getBaseFieldsForType(initialType).reduce((acc, field) => {
-      acc[field] = '';
-      return acc;
-    }, {});
-
-    // Устанавливаем один источник по умолчанию вместо пустого массива
-    setSources([{ type: initialType, fields: initialFields }]);
-    setCurrentSourceIndex(0);
-    setCurrentFields(getFieldsForType(initialType)); // Убедитесь, что эта функция существует
-    setSavedFormData(null); // Очистка сохранённых данных
-    setError(null); // Очистка ошибок
-  }}
-  sx={{ mt: 2, width: '100%' }}
->
-  Сброс
-</Button>
-
+                  setSources([{ type: initialType, fields: initialFields }]);
+                  setCurrentSourceIndex(0);
+                  setCurrentFields(getFieldsForType(initialType));
+                  setSavedFormData(null); // Очистка сохранённых данных
+                  setError(null); // Очистка ошибок
+                }}
+                sx={{ mt: 2, width: '100%' }}
+              >
+                Сброс
+              </Button>
               {hasSource && <Button fullWidth variant="outlined" onClick={saveBibFiles} sx={{ mt: 2, width: '100%' }}>Сохранить</Button>}
             </Paper>
           </Fade>
         </Modal>
 
         <Modal
-  open={editModalOpen}
-  onClose={() => setEditModalOpen(false)}
-  closeAfterTransition
-  slots={{ backdrop: Backdrop }}
-  slotProps={{
-    backdrop: {
-      timeout: 500,
-      sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
-    },
-  }}
->
-  <Fade in={editModalOpen}>
-    <Paper
-      sx={{
-        width: { xs: '90%', sm: '80%', md: '70%' },
-        p: 3,
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        borderRadius: '15px',
-        boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-        background: 'background.paper',
-        height: '90vh',
-        maxHeight: 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 1300,
-        overflowY: 'auto',
-      }}
-    >
-      <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
-        Редактировать bib-файл
-      </Typography>
-      {sources.length > 0 && (
-        <Box sx={{ flex: 1, overflowY: 'auto', mb: 2, width: '100%' }}>
-          {sources.map((source, index) => {
-            const { standard, required, optional } = getAllFieldsFromSource(source, source.type || 'misc');
-            const missingFields = required.filter(field => !source.fields[field] || source.fields[field].trim() === '');
-            const sourceErrors = source.errors || {};
-            const hasError = Object.keys(sourceErrors).length > 0 || missingFields.length > 0;
-            const generalErrors = editedLines["general"] || [];
-
-            return (
-              <Box
-                key={index}
-                mb={2}
-                sx={{
-                  width: '100%',
-                  border: hasError ? '2px solid red' : 'none',
-                  borderRadius: '4px',
-                  padding: '8px'
-                }}
-              >
-                <Typography
-                  variant="subtitle1"
-                  sx={{
-                    fontWeight: 'bold',
-                    color: hasError ? 'error.main' : 'text.primary'
-                  }}
-                >
-                  Источник {index + 1} {hasError && '(Содержит ошибки)'}
-                </Typography>
-                <FormControl fullWidth margin="normal" sx={{ width: '100%' }}>
-                  <InputLabel id={`type-label-${index}`}>Тип записи</InputLabel>
-                  <Select
-                    labelId={`type-label-${index}`}
-                    value={source.type || ''}
-                    onChange={(e) => handleTypeChange(index, e.target.value, true)}
-                    sx={{ width: '100%', ...(hasError && { borderColor: 'error.main' }) }}
-                  >
-                    <MenuItem value="article">Article</MenuItem>
-                    <MenuItem value="book">Book</MenuItem>
-                    <MenuItem value="conference">Conference</MenuItem>
-                    <MenuItem value="techReport">Tech Report</MenuItem>
-                    <MenuItem value="inProceedings">In Proceedings</MenuItem>
-                    <MenuItem value="online">Online</MenuItem>
-                    <MenuItem value="manual">Manual</MenuItem>
-                    <MenuItem value="misc">Misc</MenuItem>
-                  </Select>
-                </FormControl>
-
-                {standard
-                  .filter(field => !['volume', 'number', 'issue'].includes(field))
-                  .concat(required.filter(field => !standard.includes(field) && !['volume', 'number', 'issue'].includes(field)))
-                  .map((field) => {
-                    const isYearField = field === 'year';
-                    const isNumericField = ['year'].includes(field);
-                    const isPageField = field === 'pages';
-                    const fieldValue = source.fields[field] || '';
-                    const isInvalidYear = isYearField && fieldValue &&
-                      (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
-                    const isInvalidPage = isPageField && fieldValue &&
-                      !(/^\d+$/.test(fieldValue) || /^\d+--?\d+$/.test(fieldValue));
-                    const isMissingField = missingFields.includes(field);
-                    const fieldError = sourceErrors[field];
-
-                    return (
-                      <TextField
-                        key={field}
-                        fullWidth
-                        margin="dense"
-                        label={field}
-                        value={fieldValue}
-                        onChange={(e) => handleSourceChange(index, field, e.target.value)}
-                        sx={{
-                          width: '100%',
-                          '& .MuiInputBase-input': {
-                            textDecoration: isMissingField || fieldError ? 'underline red wavy' : 'none',
-                            color: isMissingField || isInvalidYear || isInvalidPage || fieldError
-                              ? 'error.main'
-                              : 'text.primary'
-                          },
-                        }}
-                        error={isMissingField || isInvalidYear || isInvalidPage || !!fieldError}
-                        helperText={
-                          fieldError
-                            ? fieldError.includes('author')
-                              ? 'Ожидается формат: surname, name [patronymic] или surname, name [patronymic] and surname, name [patronymic]'
-                              : fieldError.replace(/^(Неверный формат поля '[^']+'|Отсутствует обязательное поле '[^']+').*?(?=:|$)(\:.*)?$/, (match, p1, p2) => p2 ? p2.substring(1).trim() : 'Ошибка в поле')
-                            : isMissingField
-                              ? 'Обязательное поле, добавлено автоматически'
-                              : isInvalidYear
-                                ? (isNaN(fieldValue) ? 'Год должен быть числом' : `Год не может быть больше текущего (${currentYear})`)
-                                : isInvalidPage
-                                  ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
-                                  : ''
-                        }
-                        inputProps={{
-                          ...(isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*', type: 'text' } : {}),
-                          ...(isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {})
-                        }}
-                      />
-                    );
-                  })}
-
-         {source.type === 'article' && (
-  <Box sx={{ display: 'flex', gap: 2, mt: 1, flexWrap: 'wrap' }}>
-    {['volume', 'number', 'issue'].map((field) => {
-      const fieldValue = source.fields[field] || '';
-      const isInvalidNumeric = fieldValue && !/^\d+$/.test(fieldValue);
-      const hasPublicationFields = ['volume', 'number', 'issue'].some(
-        (f) => source.fields[f] && source.fields[f].trim() !== ''
-      );
-      const fieldError = sourceErrors[field];
-
-      // Извлекаем сообщение об ошибке без префикса
-      const extractErrorMessage = (error) => {
-        if (!error) return '';
-        const match = error.match(/^(Неверный формат поля '[^']+'|Отсутствует обязательное поле '[^']+').*?(?=:|$)(\:.*)?$/);
-        if (match && match[2]) return match[2].substring(1).trim();
-        return error;
-      };
-
-      const errorMessage = extractErrorMessage(fieldError);
-
-      // Определяем, есть ли реальная ошибка
-      const hasError = !!errorMessage || isInvalidNumeric || (!hasPublicationFields && !fieldValue);
-
-      return (
-        <TextField
-          key={field}
-          margin="dense"
-          label={field}
-          value={fieldValue}
-          onChange={(e) => handleSourceChange(index, field, e.target.value)}
-          sx={{
-            flex: '1 1 30%',
-            minWidth: '100px',
-            '& .MuiInputBase-input': {
-              textDecoration: hasError ? 'underline red wavy' : 'none',
-              color: hasError ? 'error.main' : 'text.primary'
+          open={editModalOpen}
+          onClose={() => setEditModalOpen(false)}
+          closeAfterTransition
+          slots={{ backdrop: Backdrop }}
+          slotProps={{
+            backdrop: {
+              timeout: 500,
+              sx: { backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: -1 },
             },
           }}
-          error={hasError}
-          helperText={
-            hasError
-              ? errorMessage ||
-                (isInvalidNumeric
-                  ? 'Поле должно содержать только число'
-                  : 'Заполните хотя бы одно из этих полей')
-              : ''
-          }
-          inputProps={{
-            inputMode: 'numeric',
-            pattern: '[0-9]*',
-            type: 'text'
-          }}
-        />
-      );
-    })}
-    <Typography variant="caption" sx={{ width: '100%', color: 'text.secondary', mt: -1 }}>
-      Возможно, у вашего источника могут отсутствовать некоторые из этих полей.
-    </Typography>
-  </Box>
-)}
+        >
+          <Fade in={editModalOpen}>
+            <Paper
+              sx={{
+                width: { xs: '90%', sm: '80%', md: '70%' },
+                p: 3,
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                borderRadius: '15px',
+                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
+                background: 'background.paper',
+                height: '90vh',
+                maxHeight: 'none',
+                display: 'flex',
+                flexDirection: 'column',
+                zIndex: 1300,
+                overflowY: 'auto',
+              }}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, textAlign: 'center' }}>
+                Редактировать bib-файл
+              </Typography>
+              {sources.length > 0 && (
+                <Box sx={{ flex: 1, overflowY: 'auto', mb: 2, width: '100%' }}>
+                  {sources.map((source, index) => {
+                    const { standard, required, optional } = getAllFieldsFromSource(source, source.type || 'misc');
+                    const missingFields = required.filter(field => !source.fields[field] || source.fields[field].trim() === '');
+                    const sourceErrors = source.errors || {};
+                    const hasError = Object.keys(sourceErrors).length > 0 || missingFields.length > 0;
+                    const generalErrors = editedLines["general"] || [];
 
-                {optional.map((field) => (
-                  <Box key={field} display="flex" alignItems="center" sx={{ width: '100%' }}>
-                    <TextField
-                      fullWidth
-                      margin="dense"
-                      label={`${field} (необязательное)`}
-                      value={source.fields[field] || ''}
-                      onChange={(e) => handleSourceChange(index, field, e.target.value)}
-                      sx={{
-                        width: '100%',
-                        '& .MuiInputBase-input': {
-                          color: 'text.secondary',
-                        },
-                      }}
-                      helperText="Это поле не является стандартным для данного типа"
-                    />
-                    <IconButton
-                      onClick={() => {
-                        const updatedSources = [...sources];
-                        delete updatedSources[index].fields[field];
-                        setSources(updatedSources);
-                      }}
-                      sx={{ ml: 1 }}
-                    >
-                      <ClearIcon />
-                    </IconButton>
-                  </Box>
-                ))}
-
-                {/* {generalErrors.length > 0 && (
-                  <Typography variant="body2" color="error" sx={{ mt: 1 }}>
-                    Общие ошибки: {generalErrors.join('; ')}
-                  </Typography>
-                )} */}
-              </Box>
-            );
-          })}
-        </Box>
-      )}
-      <Button fullWidth variant="contained" onClick={addSource} sx={{ mt: 2, width: '100%' }}>
-        Добавить источник
-      </Button>
-      <Button fullWidth variant="outlined" onClick={handleSaveEditedFile} sx={{ mt: 2, width: '100%' }}>
-        Сохранить
-      </Button>
-    </Paper>
-  </Fade>
-</Modal>
-        <Modal open={errorModalOpen} onClose={() => setErrorModalOpen(false)}>
-    <Box sx={{
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: '80%',
-        maxHeight: '80vh',
-        bgcolor: 'background.paper',
-        boxShadow: 24,
-        p: 4,
-        overflow: 'auto'
-    }}>
-        <Typography variant="h6" gutterBottom>
-            Ошибки в файле: {files.find(f => f.id === errorFileId)?.name_file}
-        </Typography>
-        
-        {Object.keys(editedLines).length > 0 ? (
-            <>
-                <Typography variant="subtitle1" color="error" gutterBottom>
-                    Обнаруженные ошибки:
-                </Typography>
-                <Box component="ul" sx={{ pl: 2, mb: 2 }}>
-                    {Object.entries(editedLines).map(([key, error], i) => (
-                        <Typography key={i} component="li" color="error">
-                            {error}
+                    return (
+                      <Box
+                        key={index}
+                        mb={2}
+                        sx={{
+                          width: '100%',
+                          border: hasError ? '2px solid red' : 'none',
+                          borderRadius: '4px',
+                          padding: '8px'
+                        }}
+                      >
+                        <Typography
+                          variant="subtitle1"
+                          sx={{
+                            fontWeight: 'bold',
+                            color: hasError ? 'error.main' : 'text.primary'
+                          }}
+                        >
+                          Источник {index + 1} {hasError && '(Содержит ошибки)'}
                         </Typography>
-                    ))}
-                </Box>
-            </>
-        ) : (
-            <Typography variant="subtitle1" color="warning" gutterBottom>
-                Ошибки не удалось разобрать. Количество ошибок: {files.find(f => f.id === errorFileId)?.number_of_errors || 0}.
+                        <FormControl fullWidth margin="normal" sx={{ width: '100%' }}>
+                          <InputLabel id={`type-label-${index}`}>Тип записи</InputLabel>
+                          <Select
+                            labelId={`type-label-${index}`}
+                            value={source.type || ''}
+                            onChange={(e) => handleTypeChange(index, e.target.value, true)}
+                            sx={{ width: '100%', ...(hasError && { borderColor: 'error.main' }) }}
+                          >
+                            <MenuItem value="article">Article</MenuItem>
+                            <MenuItem value="book">Book</MenuItem>
+                            <MenuItem value="conference">Conference</MenuItem>
+                            <MenuItem value="techReport">Tech Report</MenuItem>
+                            <MenuItem value="inProceedings">In Proceedings</MenuItem>
+                            <MenuItem value="online">Online</MenuItem>
+                            <MenuItem value="manual">Manual</MenuItem>
+                            <MenuItem value="misc">Misc</MenuItem>
+                          </Select>
+                        </FormControl>
+
+                        {standard
+                          .filter(field => !['volume', 'number', 'issue'].includes(field))
+                          .concat(required.filter(field => !standard.includes(field) && !['volume', 'number', 'issue'].includes(field)))
+                          .map((field) => {
+                            const isYearField = field === 'year';
+                            const isNumericField = ['year'].includes(field);
+                            const isPageField = field === 'pages';
+                            const fieldValue = source.fields[field] || '';
+                            const isInvalidYear = isYearField && fieldValue &&
+                              (isNaN(fieldValue) || parseInt(fieldValue) > currentYear);
+                            const isInvalidPage = isPageField && fieldValue &&
+                              !(/^\d+$/.test(fieldValue) || /^\d+--?\d+$/.test(fieldValue));
+                            const isMissingField = missingFields.includes(field);
+                            const fieldError = sourceErrors[field];
+
+                            return (
+                              <TextField
+                                key={field}
+                                fullWidth
+                                margin="dense"
+                                label={field}
+                                value={fieldValue}
+                                onChange={(e) => handleSourceChange(index, field, e.target.value)}
+                                sx={{
+                                  width: '100%',
+                                  '& .MuiInputBase-input': {
+                                    textDecoration: isMissingField || fieldError ? 'underline red wavy' : 'none',
+                                    color: isMissingField || isInvalidYear || isInvalidPage || fieldError
+                                      ? 'error.main'
+                                      : 'text.primary'
+                                  },
+                                }}
+                                error={isMissingField || isInvalidYear || isInvalidPage || !!fieldError}
+                                helperText={
+                                  fieldError
+                                    ? fieldError.includes('author')
+                                      ? 'Ожидается формат: surname, name [patronymic] или surname, name [patronymic] and surname, name [patronymic]'
+                                      : fieldError.replace(/^(Неверный формат поля '[^']+'|Отсутствует обязательное поле '[^']+').*?(?=:|$)(\:.*)?$/, (match, p1, p2) => p2 ? p2.substring(1).trim() : 'Ошибка в поле')
+                                    : isMissingField
+                                      ? 'Обязательное поле, добавлено автоматически'
+                                      : isInvalidYear
+                                        ? (isNaN(fieldValue) ? 'Год должен быть числом' : `Год не может быть больше текущего (${currentYear})`)
+                                        : isInvalidPage
+                                          ? 'Страницы должны быть числом или диапазоном (например, 20-30 или 20--30)'
+                                          : ''
+                                }
+                                inputProps={{
+                                  ...(isNumericField ? { inputMode: 'numeric', pattern: '[0-9]*', type: 'text' } : {}),
+                                  ...(isPageField ? { pattern: '\\d+--?\\d+|\\d+' } : {})
+                                }}
+                              />
+                            );
+                          })}
+
+                {source.type === 'article' && (
+          <Box sx={{ display: 'flex', gap: 2, mt: 1, flexWrap: 'wrap' }}>
+            {['volume', 'number', 'issue'].map((field) => {
+              const fieldValue = source.fields[field] || '';
+              const isInvalidNumeric = fieldValue && !/^\d+$/.test(fieldValue);
+              const hasPublicationFields = ['volume', 'number', 'issue'].some(
+                (f) => source.fields[f] && source.fields[f].trim() !== ''
+              );
+              const fieldError = sourceErrors[field];
+
+              // Извлекаем сообщение об ошибке без префикса
+              const extractErrorMessage = (error) => {
+                if (!error) return '';
+                const match = error.match(/^(Неверный формат поля '[^']+'|Отсутствует обязательное поле '[^']+').*?(?=:|$)(\:.*)?$/);
+                if (match && match[2]) return match[2].substring(1).trim();
+                return error;
+              };
+
+              const errorMessage = extractErrorMessage(fieldError);
+
+              // Определяем, есть ли реальная ошибка
+              const hasError = !!errorMessage || isInvalidNumeric || (!hasPublicationFields && !fieldValue);
+
+              return (
+                <TextField
+                  key={field}
+                  margin="dense"
+                  label={field}
+                  value={fieldValue}
+                  onChange={(e) => handleSourceChange(index, field, e.target.value)}
+                  sx={{
+                    flex: '1 1 30%',
+                    minWidth: '100px',
+                    '& .MuiInputBase-input': {
+                      textDecoration: hasError ? 'underline red wavy' : 'none',
+                      color: hasError ? 'error.main' : 'text.primary'
+                    },
+                  }}
+                  error={hasError}
+                  helperText={
+                    hasError
+                      ? errorMessage ||
+                        (isInvalidNumeric
+                          ? 'Поле должно содержать только число'
+                          : 'Заполните хотя бы одно из этих полей')
+                      : ''
+                  }
+                  inputProps={{
+                    inputMode: 'numeric',
+                    pattern: '[0-9]*',
+                    type: 'text'
+                  }}
+                />
+              );
+            })}
+            <Typography variant="caption" sx={{ width: '100%', color: 'text.secondary', mt: -1 }}>
+              Возможно, у вашего источника могут отсутствовать некоторые из этих полей.
             </Typography>
+          </Box>
         )}
 
-        <Typography variant="subtitle1" gutterBottom>
-            Содержимое файла:
-        </Typography>
-        <Paper sx={{ 
-            p: 2, 
-            backgroundColor: isDarkMode ? 'grey.900' : 'grey.50',
-            fontFamily: 'monospace',
-            whiteSpace: 'pre-wrap'
-        }}>
-            {editContent.split('\n').map((line, i) => (
-                <Typography 
-                    key={i} 
-                    component="div"
-                    sx={{ 
-                        color: editedLines[i] ? 'error.main' : 'text.primary',
-                        fontWeight: editedLines[i] ? 'bold' : 'normal'
-                    }}
-                >
-                    {line}
+                        {optional.map((field) => (
+                          <Box key={field} display="flex" alignItems="center" sx={{ width: '100%' }}>
+                            <TextField
+                              fullWidth
+                              margin="dense"
+                              label={`${field} (необязательное)`}
+                              value={source.fields[field] || ''}
+                              onChange={(e) => handleSourceChange(index, field, e.target.value)}
+                              sx={{
+                                width: '100%',
+                                '& .MuiInputBase-input': {
+                                  color: 'text.secondary',
+                                },
+                              }}
+                              helperText="Это поле не является стандартным для данного типа"
+                            />
+                            <IconButton
+                              onClick={() => {
+                                const updatedSources = [...sources];
+                                delete updatedSources[index].fields[field];
+                                setSources(updatedSources);
+                              }}
+                              sx={{ ml: 1 }}
+                            >
+                              <ClearIcon />
+                            </IconButton>
+                          </Box>
+                        ))}
+                      </Box>
+                    );
+                  })}
+                </Box>
+              )}
+              <Button fullWidth variant="contained" onClick={addSource} sx={{ mt: 2, width: '100%' }}>
+                Добавить источник
+              </Button>
+              <Button fullWidth variant="outlined" onClick={handleSaveEditedFile} sx={{ mt: 2, width: '100%' }}>
+                Сохранить
+              </Button>
+            </Paper>
+          </Fade>
+        </Modal>
+                <Modal open={errorModalOpen} onClose={() => setErrorModalOpen(false)}>
+            <Box sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '80%',
+                maxHeight: '80vh',
+                bgcolor: 'background.paper',
+                boxShadow: 24,
+                p: 4,
+                overflow: 'auto'
+            }}>
+                <Typography variant="h6" gutterBottom>
+                    Ошибки в файле: {files.find(f => f.id === errorFileId)?.name_file}
                 </Typography>
-            ))}
-        </Paper>
+                
+                {Object.keys(editedLines).length > 0 ? (
+                    <>
+                        <Typography variant="subtitle1" color="error" gutterBottom>
+                            Обнаруженные ошибки:
+                        </Typography>
+                        <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+                            {Object.entries(editedLines).map(([key, error], i) => (
+                                <Typography key={i} component="li" color="error">
+                                    {error}
+                                </Typography>
+                            ))}
+                        </Box>
+                    </>
+                ) : (
+                    <Typography variant="subtitle1" color="warning" gutterBottom>
+                        Ошибки не удалось разобрать. Количество ошибок: {files.find(f => f.id === errorFileId)?.number_of_errors || 0}.
+                    </Typography>
+                )}
 
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-            <Button 
-                variant="contained" 
-                onClick={() => setErrorModalOpen(false)}
-            >
-                Закрыть
-            </Button>
-        </Box>
-    </Box>
-</Modal>
+                <Typography variant="subtitle1" gutterBottom>
+                    Содержимое файла:
+                </Typography>
+                <Paper sx={{ 
+                    p: 2, 
+                    backgroundColor: isDarkMode ? 'grey.900' : 'grey.50',
+                    fontFamily: 'monospace',
+                    whiteSpace: 'pre-wrap'
+                }}>
+                    {editContent.split('\n').map((line, i) => (
+                        <Typography 
+                            key={i} 
+                            component="div"
+                            sx={{ 
+                                color: editedLines[i] ? 'error.main' : 'text.primary',
+                                fontWeight: editedLines[i] ? 'bold' : 'normal'
+                            }}
+                        >
+                            {line}
+                        </Typography>
+                    ))}
+                </Paper>
+
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                    <Button 
+                        variant="contained" 
+                        onClick={() => setErrorModalOpen(false)}
+                    >
+                        Закрыть
+                    </Button>
+                </Box>
+            </Box>
+        </Modal>
 
         <input
           id="upload-bib-file"

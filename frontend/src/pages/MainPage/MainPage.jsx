@@ -12,13 +12,13 @@ import {
   ThemeProvider,
 } from "@mui/material";
 import Logo from "../../components/Logo/Logo";
-import BibImage from "../../assets/images/iskm.png"; // Пример изображения BibTeX
-import CheckImage from "../../assets/images/iskm.png"; // Пример изображения для проверки
-import TelegramIcon from "@mui/icons-material/Telegram"; // Иконка Telegram
-import WhatsAppIcon from "@mui/icons-material/WhatsApp"; // Иконка WhatsApp
-import EmailIcon from "@mui/icons-material/Email"; // Иконка почты
-import { ThemeContext } from "../../components/ThemeToggleButton/ThemeContext"; // Импортируем ThemeContext
-import ThemeToggleButton from "../../components/ThemeToggleButton/ThemeToggleButton"; // Импортируем кнопку переключения темы
+import BibImage from "../../assets/images/iskm.png";
+import CheckImage from "../../assets/images/iskm.png";
+import TelegramIcon from "@mui/icons-material/Telegram";
+import WhatsAppIcon from "@mui/icons-material/WhatsApp";
+import EmailIcon from "@mui/icons-material/Email";
+import { ThemeContext } from "../../components/ThemeToggleButton/ThemeContext";
+import ThemeToggleButton from "../../components/ThemeToggleButton/ThemeToggleButton";
 
 const MainPage = () => {
   const { isDarkMode } = useContext(ThemeContext); // Получаем состояние темы

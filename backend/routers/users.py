@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from models.models import User
 from hashing import hash_password
 from database import get_db
-from routers.auth import get_current_user  # Импорт обновленного get_current_user
+from routers.auth import get_current_user
 
 router = APIRouter()
 
