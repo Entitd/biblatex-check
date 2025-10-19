@@ -27,7 +27,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Настройка базы данных
-SQLALCHEMY_DATABASE_URL = "postgresql://postgres:qwerty@db:5432/postgres"
+# SQLALCHEMY_DATABASE_URL = "postgresql://postgres:qwerty@db:5432/postgres"
+
+SQLALCHEMY_DATABASE_URL = "postgresql://user:password@db:5432/bibtexcheck"
+
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 
 Base.metadata.create_all(bind=engine)
