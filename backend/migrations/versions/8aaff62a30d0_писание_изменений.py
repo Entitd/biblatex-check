@@ -80,6 +80,10 @@ def upgrade() -> None:
     columns = inspector.get_columns('examinations')
     column_names = [col['name'] for col in columns]
 
+    if 'session_id' not in column_names:
+        op.add_column('examinations', sa.Column('session_id', sa.String(), nullable=True))
+        print("INFO: Колонка 'session_id' была добавлена в examinations, так как отсутствовала.")
+        
     # 💥 Добавление колонки 'last_active', если она отсутствует
     if 'last_active' not in column_names:
         # Важно: создаем колонку с типом sa.String(), чтобы ее можно было преобразовать
@@ -144,6 +148,8 @@ def downgrade() -> None:
                existing_type=sa.DateTime(),
                type_=sa.VARCHAR(),
                existing_nullable=True)
+
+
     op.drop_index(op.f('ix_blacklisted_tokens_token'), table_name='blacklisted_tokens')
     op.drop_index(op.f('ix_blacklisted_tokens_id'), table_name='blacklisted_tokens')
     op.alter_column('blacklisted_tokens', 'blacklisted_on',
